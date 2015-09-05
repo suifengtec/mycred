@@ -1,5 +1,5 @@
 === myCRED ===
-Contributors: designbymerovingi
+Contributors: designbymerovingi,suifengtec
 Tags:points, tokens, credit, management, reward, charge, community, contest, buddypress, jetpack, bbpress, simple press, woocommerce, marketpress, wp e-commerce, gravity forms, share-this
 Requires at least: 3.8
 Tested up to: 4.3.0
