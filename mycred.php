@@ -20,6 +20,13 @@
  * BuddyPress Compatible: yes
  * Forum URI: http://mycred.me/support/forums/
  */
+
+/*
+Compatible with WP4.3+
+https://github.com/suifengtec/mycred
+
+ */
+
 define( 'myCRED_VERSION',      '1.6.3' );
 define( 'myCRED_SLUG',         'mycred' );
 define( 'myCRED_NAME',         '<strong>my</strong>CRED' );
