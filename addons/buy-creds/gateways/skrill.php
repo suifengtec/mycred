@@ -5,15 +5,16 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * myCRED_Skrill class
  * Skrill (Moneybookers) - Payment Gateway
  * @since 0.1
- * @version 1.1
+ * @version 1.1.1
  */
-if ( ! class_exists( 'myCRED_Skrill' ) ) {
+if ( ! class_exists( 'myCRED_Skrill' ) ) :
 	class myCRED_Skrill extends myCRED_Payment_Gateway {
 
 		/**
 		 * Construct
 		 */
 		function __construct( $gateway_prefs ) {
+
 			$types = mycred_get_types();
 			$default_exchange = array();
 			foreach ( $types as $type => $label )
@@ -32,11 +33,11 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 					'account_logo'      => '',
 					'confirmation_note' => '',
 					'email_receipt'     => 0,
-					'item_name'         => __( 'Purchase of myCRED %plural%', 'mycred' ),
+					'item_name'         => 'Purchase of myCRED %plural%',
 					'exchange'          => $default_exchange
 				)
 			), $gateway_prefs );
-			
+
 		}
 
 		/**
@@ -45,6 +46,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.0
 		 */
 		public function skrill_currencies( $currencies ) {
+
 			$currencies['RON'] = 'Romanian Leu';
 			$currencies['TRY'] = 'New Turkish Lira';
 			$currencies['RON'] = 'Romanian Leu';
@@ -66,12 +68,13 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 			$currencies['OMR'] = 'Omani Rial';
 			$currencies['RSD'] = 'Serbian Dinar';
 			$currencies['TND'] = 'Tunisian Dinar';
-			
+
 			unset( $currencies['MXN'] );
 			unset( $currencies['BRL'] );
 			unset( $currencies['PHP'] );
-			
+
 			return $currencies;
+
 		}
 
 		/**
@@ -81,16 +84,18 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.1
 		 */
 		public function IPN_is_valid_call() {
+
 			$result = true;
 
 			$check = $_POST['merchant_id'] . $_POST['transaction_id'] . strtoupper( md5( $this->prefs['word'] ) ) . $_POST['mb_amount'] . $_POST['mb_currency'] . $_POST['status'];
 			if ( strtoupper( md5( $check ) ) !== $_POST['md5sig'] )
 				$result = false;
-			
+
 			if ( $_POST['pay_to_email'] != trim( $this->prefs['account'] ) )
 				$result = false;
 
 			return $result;
+
 		}
 
 		/**
@@ -99,7 +104,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.2
 		 */
 		public function process() {
-			
+
 			// Required fields
 			if ( isset( $_POST['sales_data'] ) && isset( $_POST['transaction_id'] ) && isset( $_POST['amount'] ) ) {
 
@@ -137,21 +142,20 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 
 							// If account is credited, delete the post and it's comments.
 							if ( $this->complete_payment( $pending_payment, $_POST['transaction_id'] ) )
-								wp_delete_post( $pending_post_id, true );
+								$this->trash_pending_payment( $pending_post_id );
 							else
 								$new_call[] = __( 'Failed to credit users account.', 'mycred' );
-							
 
 						}
-						
+
 						// Log Call
 						if ( ! empty( $new_call ) )
 							$this->log_call( $pending_post_id, $new_call );
 
 					}
-					
+
 				}
-			
+
 			}
 
 		}
@@ -162,12 +166,14 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.1
 		 */
 		public function returning() {
+
 			if ( isset( $_GET['transaction_id'] ) && ! empty( $_GET['transaction_id'] ) && isset( $_GET['msid'] ) && ! empty( $_GET['msid'] ) ) {
 				$this->get_page_header( __( 'Success', 'mycred' ), $this->get_thankyou() );
 				echo '<h1>' . __( 'Thank you for your purchase', 'mycred' ) . '</h1>';
 				$this->get_page_footer();
 				exit;
 			}
+
 		}
 
 		/**
@@ -176,6 +182,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.2
 		 */
 		public function buy() {
+
 			if ( ! isset( $this->prefs['account'] ) || empty( $this->prefs['account'] ) )
 				wp_die( __( 'Please setup this gateway before attempting to make a purchase!', 'mycred' ) );
 
@@ -275,20 +282,21 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 			$this->get_page_redirect( $hidden_fields, $location );
 			$this->get_page_footer();
 
-			// Exit
-			unset( $this );
 			exit;
+
 		}
 
 		/**
 		 * Preferences
 		 * @since 0.1
-		 * @version 1.0
+		 * @version 1.0.1
 		 */
 		function preferences() {
-			add_filter( 'mycred_dropdown_currencies', array( $this, 'skrill_currencies' ) );
-			$prefs = $this->prefs; ?>
 
+			add_filter( 'mycred_dropdown_currencies', array( $this, 'skrill_currencies' ) );
+			$prefs = $this->prefs;
+
+?>
 <label class="subheader" for="<?php echo $this->field_id( 'currency' ); ?>"><?php _e( 'Currency', 'mycred' ); ?></label>
 <ol>
 	<li>
@@ -305,8 +313,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 <label class="subheader" for="<?php echo $this->field_id( 'word' ); ?>"><?php _e( 'Secret Word', 'mycred' ); ?></label>
 <ol>
 	<li>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( 'word' ); ?>" id="<?php echo $this->field_id( 'word' ); ?>" value="<?php echo $prefs['word']; ?>" class="medium" /></div>
-		<span class="description"><?php _e( 'You can set your secret word under "Merchant Tools" in your Skrill Account.', 'mycred' ); ?></span>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( 'word' ); ?>" id="<?php echo $this->field_id( 'word' ); ?>" value="<?php echo $prefs['word']; ?>" class="long" /></div>
 	</li>
 </ol>
 <label class="subheader" for="<?php echo $this->field_id( 'item_name' ); ?>"><?php _e( 'Item Name', 'mycred' ); ?></label>
@@ -323,7 +330,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 <label class="subheader" for="<?php echo $this->field_id( 'email_receipt' ); ?>"><?php _e( 'Confirmation Email', 'mycred' ); ?></label>
 <ol>
 	<li>
-		<input type="checkbox" name="<?php echo $this->field_name( 'email_receipt' ); ?>" id="<?php echo $this->field_id( 'email_receipt' ); ?>" value="1"<?php checked( $prefs['email_receipt'], 1 ); ?> /><?php _e( 'Ask Skrill to send me a confirmation email for each successful purchase.', 'mycred' ); ?>
+		<label for="<?php echo $this->field_id( 'email_receipt' ); ?>"><input type="checkbox" name="<?php echo $this->field_name( 'email_receipt' ); ?>" id="<?php echo $this->field_id( 'email_receipt' ); ?>" value="1"<?php checked( $prefs['email_receipt'], 1 ); ?> /> <?php _e( 'Ask Skrill to send me a confirmation email for each successful purchase.', 'mycred' ); ?></label>
 	</li>
 </ol>
 <label class="subheader"><?php _e( 'Checkout Page', 'mycred' ); ?></label>
@@ -339,17 +346,13 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		<span class="description"><?php _e( 'The URL to the image you want to use on the top of the gateway. For best integration results we recommend you use logos with dimensions up to 200px in width and 50px in height.', 'mycred' ); ?></span>
 	</li>
 	<li>
-		<label for="<?php echo $this->field_id( 'confirmation_note' ); ?>"><?php _e( 'Confirmation Note', 'mycred' ); ?></label>
-		<textarea rows="10" cols="50" name="<?php echo $this->field_name( 'confirmation_note' ); ?>" id="<?php echo $this->field_id( 'confirmation_note' ); ?>" class="large-text code"><?php echo $prefs['confirmation_note']; ?></textarea>
+		<label for="<?php echo $this->field_id( 'confirmation_note' ); ?>"><?php _e( 'Confirmation Note', 'mycred' ); ?></label><br />
+		<textarea rows="10" cols="50" style="width: 85%;" name="<?php echo $this->field_name( 'confirmation_note' ); ?>" id="<?php echo $this->field_id( 'confirmation_note' ); ?>" class="large-text code"><?php echo $prefs['confirmation_note']; ?></textarea><br />
 		<span class="description"><?php _e( 'Optional text to show user once a transaction has been successfully completed. This text is shown by Skrill.', 'mycred' ); ?></span>
-	</li>
-	<li>
-		<h3><?php _e( 'Important!', 'mycred' ); ?></h3>
-		<p><span class="description"><strong>1. </strong><?php echo $this->core->template_tags_general( __( 'By default all Skrill Merchant account accept payments via Bank Transfers. When a user selects this option, no %_plural% are awarded! You will need to manually award these once the bank transfer is completed.', 'mycred' ) ); ?></span></p>
-		<p><span class="description"><strong>2. </strong><?php _e( 'By default purchases made using Skrill will result in users having to signup for a Skrill account (if they do not have one already). You can contact Skrill Merchant Services and request to disable this feature.', 'mycred' ); ?></span></p>
 	</li>
 </ol>
 <?php
+
 		}
 
 		/**
@@ -358,6 +361,7 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 		 * @version 1.1
 		 */
 		public function sanitise_preferences( $data ) {
+
 			$new_data = array();
 
 			$new_data['sandbox']           = ( isset( $data['sandbox'] ) ) ? 1 : 0;
@@ -380,7 +384,9 @@ if ( ! class_exists( 'myCRED_Skrill' ) ) {
 			$new_data['exchange'] = $data['exchange'];
 
 			return $new_data;
+
 		}
+
 	}
-}
+endif;
 ?>

@@ -5,15 +5,16 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * myCRED_Bitpay class
  * BitPay (Bitcoins) - Payment Gateway
  * @since 1.4
- * @version 1.1
+ * @version 1.1.1
  */
-if ( ! class_exists( 'myCRED_Bitpay' ) ) {
+if ( ! class_exists( 'myCRED_Bitpay' ) ) :
 	class myCRED_Bitpay extends myCRED_Payment_Gateway {
 
 		/**
 		 * Construct
 		 */
 		function __construct( $gateway_prefs ) {
+
 			$types = mycred_get_types();
 			$default_exchange = array();
 			foreach ( $types as $type => $label )
@@ -27,11 +28,12 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 					'api_key'          => '',
 					'currency'         => 'USD',
 					'exchange'         => $default_exchange,
-					'item_name'        => __( 'Purchase of myCRED %plural%', 'mycred' ),
+					'item_name'        => 'Purchase of myCRED %plural%',
 					'speed'            => 'high',
 					'notifications'    => 1
 				)
 			), $gateway_prefs );
+
 		}
 
 		/**
@@ -40,7 +42,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 		 * @version 1.1
 		 */
 		public function process() {
-			
+
 			// Required fields
 			if ( isset( $_POST['postData'] ) && isset( $_POST['id'] ) && isset( $_POST['price'] ) ) {
 
@@ -78,21 +80,20 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 
 							// If account is credited, delete the post and it's comments.
 							if ( $this->complete_payment( $pending_payment, $_POST['id'] ) )
-								wp_delete_post( $pending_post_id, true );
+								$this->trash_pending_payment( $pending_post_id );
 							else
 								$new_call[] = __( 'Failed to credit users account.', 'mycred' );
-							
 
 						}
-						
+
 						// Log Call
 						if ( ! empty( $new_call ) )
 							$this->log_call( $pending_post_id, $new_call );
 
 					}
-					
+
 				}
-			
+
 			}
 
 		}
@@ -110,6 +111,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 		 * @version 1.0
 		 */
 		public function create_invoice( $args ) {
+
 			$data = json_encode( $args );
 
 			$curl = curl_init( 'https://bitpay.com/api/invoice/' );
@@ -148,6 +150,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 				return array( 'error' => $response );	
 
 			return $response;
+
 		}
 
 		/**
@@ -156,6 +159,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 		 * @version 1.1
 		 */
 		public function buy() {
+
 			if ( ! isset( $this->prefs['api_key'] ) || empty( $this->prefs['api_key'] ) )
 				wp_die( __( 'Please setup this gateway before attempting to make a purchase!', 'mycred' ) );
 
@@ -209,17 +213,20 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 
 			// Request Failed
 			if ( isset( $request['error'] ) ) {
-				$this->get_page_header( __( 'Processing payment &hellip;', 'mycred' ) ); ?>
+				$this->get_page_header( __( 'Processing payment &hellip;', 'mycred' ) );
 
+?>
 <p><?php _e( 'Could not create a BitPay Invoice. Please contact the site administrator!', 'mycred' ); ?></p>
 <p><?php printf( __( 'Bitpay returned the following error message:', 'mycred' ) . ' ', $request['error'] ); ?></p>
 <?php
+
 			}
 
 			// Request success
 			else {
-				$this->get_page_header( __( 'Processing payment &hellip;', 'mycred' ) ); ?>
+				$this->get_page_header( __( 'Processing payment &hellip;', 'mycred' ) );
 
+?>
 <div class="continue-forward" style="text-align:center;">
 	<p>&nbsp;</p>
 	<img src="<?php echo plugins_url( 'assets/images/loading.gif', myCRED_PURCHASE ); ?>" alt="Loading" />
@@ -229,10 +236,8 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 			}
 
 			$this->get_page_footer();
-
-			// Exit
-			unset( $this );
 			exit;
+
 		}
 
 		/**
@@ -241,8 +246,10 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 		 * @version 1.0
 		 */
 		function preferences() {
-			$prefs = $this->prefs; ?>
 
+			$prefs = $this->prefs;
+
+?>
 <label class="subheader" for="<?php echo $this->field_id( 'api_key' ); ?>"><?php _e( 'API Key', 'mycred' ); ?></label>
 <ol>
 	<li>
@@ -271,7 +278,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 <ol>
 	<li>
 		<select name="<?php echo $this->field_name( 'speed' ); ?>" id="<?php echo $this->field_id( 'speed' ); ?>">
-			<?php
+<?php
 
 			$options = array(
 				'high'   => __( 'High', 'mycred' ),
@@ -293,7 +300,7 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 <ol>
 	<li>
 		<select name="<?php echo $this->field_name( 'notifications' ); ?>" id="<?php echo $this->field_id( 'notifications' ); ?>">
-			<?php
+<?php
 
 			$options = array(
 				0 => __( 'No', 'mycred' ),
@@ -311,8 +318,9 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 	</li>
 </ol>
 <?php
+
 		}
-		
+
 		/**
 		 * Sanatize Prefs
 		 * @since 1.4
@@ -320,10 +328,10 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 		 */
 		public function sanitise_preferences( $data ) {
 
-			$new_data['api_key'] = sanitize_text_field( $data['api_key'] );
-			$new_data['currency'] = sanitize_text_field( $data['currency'] );
-			$new_data['item_name'] = sanitize_text_field( $data['item_name'] );
-			$new_data['speed'] = sanitize_text_field( $data['speed'] );
+			$new_data['api_key']       = sanitize_text_field( $data['api_key'] );
+			$new_data['currency']      = sanitize_text_field( $data['currency'] );
+			$new_data['item_name']     = sanitize_text_field( $data['item_name'] );
+			$new_data['speed']         = sanitize_text_field( $data['speed'] );
 			$new_data['notifications'] = sanitize_text_field( $data['notifications'] );
 
 			// If exchange is less then 1 we must start with a zero
@@ -336,7 +344,9 @@ if ( ! class_exists( 'myCRED_Bitpay' ) ) {
 			$new_data['exchange'] = $data['exchange'];
 
 			return $data;
+
 		}
+
 	}
-}
+endif;
 ?>

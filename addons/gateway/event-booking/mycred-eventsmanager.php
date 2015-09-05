@@ -475,7 +475,7 @@ jQuery(function($) {
 			url : '<?php echo $ajax_url; ?>',
 			// Before we start
 			beforeSend : function() {
-				button.val( 'Processing...' );
+				button.val( '<?php echo esc_js( esc_attr__( 'Processing...', 'mycred' ) ); ?>' );
 				button.attr( 'disabled', 'disabled' );
 			},
 			// On Successful Communication

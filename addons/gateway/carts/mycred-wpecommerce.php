@@ -9,6 +9,7 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * @since 1.3
  * @version 1.1
  */
+add_action( 'after_setup_theme', 'mycred_init_wpecom_construct_gateway' );
 if ( ! function_exists( 'mycred_init_wpecom_construct_gateway' ) ) {
 
 	/**
@@ -16,7 +17,6 @@ if ( ! function_exists( 'mycred_init_wpecom_construct_gateway' ) ) {
 	 * @since 1.3
 	 * @version 1.0
 	 */
-	add_action( 'after_setup_theme', 'mycred_init_wpecom_construct_gateway' );
 	function mycred_init_wpecom_construct_gateway()
 	{
 		if ( ! class_exists( 'wpsc_merchant' ) ) return;
@@ -229,7 +229,7 @@ if ( ! function_exists( 'mycred_init_wpecom_construct_gateway' ) ) {
 			 * Charges the user for the purchase and if profit sharing is enabled
 			 * each product owner.
 			 * @since 1.3
-			 * @version 1.1
+			 * @version 1.3
 			 */
 			function submit() {
 				// Since the wpsc_pre_submit_gateway action could change these values, we need to check
@@ -268,13 +268,16 @@ if ( ! function_exists( 'mycred_init_wpecom_construct_gateway' ) ) {
 							$cost = $price*$quantity;
 
 							// Calculate Share
-							$share = ( $this->prefs['share'] / 100 ) * $cost;
+							$percentage = apply_filters( 'mycred_wpecom_profit_share', $this->prefs['share'], $this, $product );
+							if ( $percentage == 0 ) continue;
+
+							$share = ( $percentage / 100 ) * $cost;
 
 							// Payout
 							$this->core->add_creds(
 								'store_sale',
 								$product->post_author,
-								$this->core->number( $share ),
+								$share,
 								$this->prefs['share_log'],
 								$product->ID,
 								array( 'ref_type' => 'post' ),

@@ -3,13 +3,13 @@
  * Plugin Name: myCRED
  * Plugin URI: http://mycred.me
  * Description: <strong>my</strong>CRED is an adaptive points management system for WordPress powered websites, giving you full control on how points are gained, used, traded, managed, logged or presented.
- * Version: 1.5.1
+ * Version: 1.6.3
  * Tags: points, tokens, credit, management, reward, charge, buddypress, bbpress, jetpack, woocommerce, marketpress, wp e-commerce, gravity forms, simplepress
  * Author: Gabriel S Merovingi
  * Author URI: http://www.merovingi.com
  * Author Email: support@mycred.me
  * Requires at least: WP 3.8
- * Tested up to: WP 4.0
+ * Tested up to: WP 4.1
  * Text Domain: mycred
  * Domain Path: /lang
  * License: GPLv2 or later
@@ -20,7 +20,7 @@
  * BuddyPress Compatible: yes
  * Forum URI: http://mycred.me/support/forums/
  */
-define( 'myCRED_VERSION',      '1.5.1' );
+define( 'myCRED_VERSION',      '1.6.3' );
 define( 'myCRED_SLUG',         'mycred' );
 define( 'myCRED_NAME',         '<strong>my</strong>CRED' );
 
@@ -34,12 +34,11 @@ define( 'myCRED_LANG_DIR',      myCRED_ROOT_DIR . 'lang/' );
 define( 'myCRED_MODULES_DIR',   myCRED_ROOT_DIR . 'modules/' );
 define( 'myCRED_PLUGINS_DIR',   myCRED_ROOT_DIR . 'plugins/' );
 
-require_once( myCRED_INCLUDES_DIR . 'mycred-functions.php' );
-require_once( myCRED_INCLUDES_DIR . 'mycred-depreciated.php' );
-require_once( myCRED_INCLUDES_DIR . 'mycred-about.php' );
+require_once myCRED_INCLUDES_DIR . 'mycred-functions.php';
+require_once myCRED_INCLUDES_DIR . 'mycred-about.php';
 
-require_once( myCRED_ABSTRACTS_DIR . 'mycred-abstract-hook.php' );
-require_once( myCRED_ABSTRACTS_DIR . 'mycred-abstract-module.php' );
+require_once myCRED_ABSTRACTS_DIR . 'mycred-abstract-hook.php';
+require_once myCRED_ABSTRACTS_DIR . 'mycred-abstract-module.php';
 
 /**
  * myCRED_Core Class
@@ -63,25 +62,28 @@ if ( ! class_exists( 'myCRED_Core' ) ) {
 /**
  * Required
  * @since 1.3
- * @version 1.1
+ * @version 1.2
  */
 if ( ! function_exists( 'mycred_load' ) ) :
 	function mycred_load()
 	{
-		require_once( myCRED_INCLUDES_DIR . 'mycred-remote.php' );
-		require_once( myCRED_INCLUDES_DIR . 'mycred-log.php' );
-		require_once( myCRED_INCLUDES_DIR . 'mycred-network.php' );
-		require_once( myCRED_INCLUDES_DIR . 'mycred-protect.php' );
-		include_once( myCRED_INCLUDES_DIR . 'mycred-update.php' );
+		// Check Network blocking
+		if ( mycred_is_site_blocked() ) return;
+
+		// Load required files
+		require_once myCRED_INCLUDES_DIR . 'mycred-remote.php';
+		require_once myCRED_INCLUDES_DIR . 'mycred-log.php';
+		require_once myCRED_INCLUDES_DIR . 'mycred-network.php';
+		require_once myCRED_INCLUDES_DIR . 'mycred-protect.php';
+		include_once myCRED_INCLUDES_DIR . 'mycred-update.php';
 
 		// Bail now if the setup needs to run
 		if ( is_mycred_ready() === false ) return;
 
-		require_once( myCRED_INCLUDES_DIR . 'mycred-leaderboard.php' );
-		require_once( myCRED_INCLUDES_DIR . 'mycred-widgets.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-widgets.php';
 
 		// Add-ons
-		require_once( myCRED_MODULES_DIR . 'mycred-module-addons.php' );
+		require_once myCRED_MODULES_DIR . 'mycred-module-addons.php';
 		$addons = new myCRED_Addons_Module();
 		$addons->load();
 		$addons->run_addons();
@@ -99,6 +101,7 @@ if ( ! function_exists( 'mycred_load' ) ) :
 		register_uninstall_hook(    myCRED_THIS, 'mycred_plugin_uninstall' );
 
 		add_action( 'in_plugin_update_message-mycred/mycred.php', 'mycred_update_warning' );
+
 	}
 endif;
 
@@ -107,13 +110,13 @@ mycred_load();
 /**
  * Plugin Activation
  * @since 1.3
- * @version 1.0
+ * @version 1.1.1
  */
 if ( ! function_exists( 'mycred_plugin_activation' ) ) :
 	function mycred_plugin_activation()
 	{
 		// Load Installer
-		require_once( myCRED_INCLUDES_DIR . 'mycred-install.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-install.php';
 		$install = new myCRED_Install();
 
 		// Compatibility check
@@ -126,11 +129,6 @@ if ( ! function_exists( 'mycred_plugin_activation' ) ) :
 		else
 			$install->reactivate();
 
-		// Add Cron Schedule
-		if ( ! wp_next_scheduled( 'mycred_reset_key' ) ) {
-			$frequency = apply_filters( 'mycred_cron_reset_key', 'daily' );
-			wp_schedule_event( date_i18n( 'U' ), $frequency, 'mycred_reset_key' );
-		}
 	}
 endif;
 
@@ -161,7 +159,7 @@ if ( ! function_exists( 'mycred_plugin_uninstall' ) ) :
 	function mycred_plugin_uninstall()
 	{
 		// Load Installer
-		require_once( myCRED_INCLUDES_DIR . 'mycred-install.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-install.php';
 		$install = new myCRED_Install();
 
 		do_action( 'mycred_before_deletion', $install );
@@ -177,7 +175,7 @@ endif;
 /**
  * myCRED Plugin Startup
  * @since 1.3
- * @version 1.5
+ * @version 1.6
  */
 if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 	function mycred_plugin_start_up()
@@ -187,7 +185,8 @@ if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 
 		$mycred_types = mycred_get_types();
 
-		require_once( myCRED_INCLUDES_DIR . 'mycred-shortcodes.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-shortcodes.php';
+		require_once myCRED_INCLUDES_DIR . 'mycred-referrals.php';
 
 		// Load Translation
 		$locale = apply_filters( 'plugin_locale', get_locale(), 'mycred' );
@@ -201,7 +200,7 @@ if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 		// Lets start with Multisite
 		if ( is_multisite() ) {
 			if ( ! function_exists( 'is_plugin_active_for_network' ) )
-				require_once( ABSPATH . '/wp-admin/includes/plugin.php' );
+				require_once ABSPATH . '/wp-admin/includes/plugin.php';
 
 			if ( is_plugin_active_for_network( 'mycred/mycred.php' ) ) {
 				$network = new myCRED_Network_Module();
@@ -210,7 +209,7 @@ if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 		}
 
 		// Load Settings
-		require_once( myCRED_MODULES_DIR . 'mycred-module-settings.php' );
+		require_once myCRED_MODULES_DIR . 'mycred-module-settings.php';
 		foreach ( $mycred_types as $type => $title ) {
 			$mycred_modules[ $type ]['settings'] = new myCRED_Settings_Module( $type );
 			$mycred_modules[ $type ]['settings']->load();
@@ -218,62 +217,71 @@ if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 
 		// Load only hooks that we have use of
 		if ( defined( 'JETPACK__PLUGIN_DIR' ) ) 
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-jetpack.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-jetpack.php';
 
 		if ( class_exists( 'bbPress' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-bbPress.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-bbPress.php';
 
 		if ( function_exists( 'invite_anyone_init' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-invite-anyone.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-invite-anyone.php';
 
 		if ( function_exists( 'wpcf7' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-contact-form7.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-contact-form7.php';
 
 		if ( class_exists( 'BadgeOS' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-badgeOS.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-badgeOS.php';
 
 		if ( function_exists( 'vote_poll' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-wp-polls.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-wp-polls.php';
 
 		if ( function_exists( 'wp_favorite_posts' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-wp-favorite-posts.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-wp-favorite-posts.php';
 
 		if ( function_exists( 'bp_em_init' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-events-manager-light.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-events-manager-light.php';
 
 		if ( defined( 'STARRATING_DEBUG' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-gd-star-rating.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-gd-star-rating.php';
 
 		if ( defined( 'SFTOPICS' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-simplepress.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-simplepress.php';
 	
 		if ( function_exists( 'bp_links_setup_root_component' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-links.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-links.php';
 
 		if ( function_exists( 'bpa_init' ) || function_exists( 'bpgpls_init' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-gallery.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-gallery.php';
 
 		if ( class_exists( 'GFForms' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-gravityforms.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-gravityforms.php';
 
 		if ( function_exists( 'rtmedia_autoloader' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-media.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-buddypress-media.php';
 
 		if ( function_exists( 'install_ShareThis' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-sharethis.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-sharethis.php';
 
 		if ( class_exists( 'WooCommerce' ) )
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-woocommerce.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-woocommerce.php';
+
+		if ( class_exists( 'MarketPress' ) )
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-marketpress.php';
+
+		if ( defined( 'WP_POSTRATINGS_VERSION' ) )
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-wp-postratings.php';
+
+		if ( class_exists( 'Affiliate_WP' ) )
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-affiliatewp.php';
 
 		// Load hooks
-		require_once( myCRED_MODULES_DIR . 'mycred-module-hooks.php' );
+		require_once myCRED_MODULES_DIR . 'mycred-module-hooks.php';
 		foreach ( $mycred_types as $type => $title ) {
 			$mycred_modules[ $type ]['hooks'] = new myCRED_Hooks_Module( $type );
 			$mycred_modules[ $type ]['hooks']->load();
 		}
 
 		// Load log
-		require_once( myCRED_MODULES_DIR . 'mycred-module-log.php' );
+		require_once myCRED_MODULES_DIR . 'mycred-module-log.php';
 		foreach ( $mycred_types as $type => $title ) {
 			$mycred_modules[ $type ]['log'] = new myCRED_Log_Module( $type );
 			$mycred_modules[ $type ]['log']->load();
@@ -281,15 +289,15 @@ if ( ! function_exists( 'mycred_plugin_start_up' ) ) :
 
 		// BuddyPress	
 		if ( class_exists( 'BuddyPress' ) ) {
-			require_once( myCRED_PLUGINS_DIR . 'mycred-hook-buddypress.php' );
+			require_once myCRED_PLUGINS_DIR . 'mycred-hook-buddypress.php';
 
-			require_once( myCRED_MODULES_DIR . 'mycred-module-buddypress.php' );
+			require_once myCRED_MODULES_DIR . 'mycred-module-buddypress.php';
 			$mycred_modules['mycred_default']['buddypress'] = new myCRED_BuddyPress_Module( 'mycred_default' );
 			$mycred_modules['mycred_default']['buddypress']->load();
 		}
 
 		// Load admin
-		require_once( myCRED_INCLUDES_DIR . 'mycred-admin.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-admin.php';
 		$admin = new myCRED_Admin();
 		$admin->load();
 
@@ -300,11 +308,15 @@ endif;
 /**
  * Init
  * @since 1.3
- * @version 1.2
+ * @version 1.3.1
  */
 if ( ! function_exists( 'mycred_init' ) ) :
 	function mycred_init()
 	{
+		// Add Cron Schedule
+		if ( ! wp_next_scheduled( 'mycred_reset_key' ) )
+			wp_schedule_event( date_i18n( 'U' ), apply_filters( 'mycred_cron_reset_key', 'daily' ), 'mycred_reset_key' );
+
 		// Enqueue scripts & styles
 		add_action( 'wp_enqueue_scripts',    'mycred_enqueue_front' );
 		add_action( 'admin_enqueue_scripts', 'mycred_enqueue_admin' );
@@ -322,6 +334,20 @@ if ( ! function_exists( 'mycred_init' ) ) :
 		add_shortcode( 'mycred_send',          'mycred_render_shortcode_send' );
 		add_shortcode( 'mycred_total_balance', 'mycred_render_shortcode_total' );
 		add_shortcode( 'mycred_exchange',      'mycred_render_shortcode_exchange' );
+		add_shortcode( 'mycred_hook_table',    'mycred_render_shortcode_hook_table' );
+
+		// Shortcode related
+		add_action( 'wp_footer',                  'mycred_send_shortcode_footer' );
+		add_action( 'wp_ajax_mycred-send-points', 'mycred_shortcode_send_points_ajax' );
+
+		// Referral System
+		mycred_load_referral_program();
+
+		add_shortcode( 'mycred_affiliate_link', 'mycred_render_affiliate_link' );
+		add_shortcode( 'mycred_affiliate_id',   'mycred_render_affiliate_id' );
+
+		// Exchange
+		mycred_catch_exchange_requests();
 
 		// Let others play
 		do_action( 'mycred_init' );
@@ -352,17 +378,22 @@ endif;
 /**
  * Admin Init
  * @since 1.3
- * @version 1.2
+ * @version 1.3
  */
 if ( ! function_exists( 'mycred_admin_init' ) ) :
 	function mycred_admin_init()
 	{
+		// Run update if needed
+		$mycred_version = get_option( 'mycred_version', myCRED_VERSION );
+		if ( $mycred_version != myCRED_VERSION )
+			do_action( 'mycred_reactivation', $mycred_version );
+
 		// Dashboard Overview
-		require_once( myCRED_INCLUDES_DIR . 'mycred-overview.php' );
+		require_once myCRED_INCLUDES_DIR . 'mycred-overview.php';
 
 		// Register importers
 		if ( defined( 'WP_LOAD_IMPORTERS' ) )
-			require_once( myCRED_INCLUDES_DIR . 'mycred-importer.php' );
+			require_once myCRED_INCLUDES_DIR . 'mycred-importer.php';
 
 		// Let others play
 		do_action( 'mycred_admin_init' );
@@ -395,12 +426,12 @@ endif;
 /**
  * Adjust the Tool Bar
  * @since 1.3
- * @version 1.4.1
+ * @version 1.4.2
  */
 if ( ! function_exists( 'mycred_hook_into_toolbar' ) ) :
 	function mycred_hook_into_toolbar( $wp_admin_bar )
 	{
-		if ( ! is_user_logged_in() ) return;
+		if ( ! is_user_logged_in() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) ) return;
 
 		$user_id = get_current_user_id();
 
@@ -627,13 +658,14 @@ if ( ! function_exists( 'mycred_enqueue_admin' ) ) :
 			array(
 				'ajaxurl'       => admin_url( 'admin-ajax.php' ),
 				'token'         => wp_create_nonce( 'mycred-management-actions' ),
-				'working'       => __( 'Processing...', 'mycred' ),
-				'confirm_log'   => __( 'Warning! All entries in your log will be permanently removed! This can not be undone!', 'mycred' ),
-				'confirm_clean' => __( 'All log entries belonging to deleted users will be permanently deleted! This can not be undone!', 'mycred' ),
-				'confirm_reset' => __( 'Warning! All user balances will be set to zero! This can not be undone!', 'mycred' ),
-				'done'          => __( 'Done!', 'mycred' ),
-				'export_close'  => __( 'Close', 'mycred' ),
-				'export_title'  => $mycred->template_tags_general( __( 'Export users %plural%', 'mycred' ) )
+				'working'       => esc_attr__( 'Processing...', 'mycred' ),
+				'confirm_log'   => esc_attr__( 'Warning! All entries in your log will be permanently removed! This can not be undone!', 'mycred' ),
+				'confirm_clean' => esc_attr__( 'All log entries belonging to deleted users will be permanently deleted! This can not be undone!', 'mycred' ),
+				'confirm_reset' => esc_attr__( 'Warning! All user balances will be set to zero! This can not be undone!', 'mycred' ),
+				'done'          => esc_attr__( 'Done!', 'mycred' ),
+				'export_close'  => esc_attr__( 'Close', 'mycred' ),
+				'export_title'  => $mycred->template_tags_general( esc_attr__( 'Export users %plural%', 'mycred' ) ),
+				'decimals'      => esc_attr__( 'In order to adjust the number of decimal places you want to use we must update your log. It is highly recommended that you backup your current log before continuing!', 'mycred' )
 			)
 		);
 
@@ -649,9 +681,9 @@ if ( ! function_exists( 'mycred_enqueue_admin' ) ) :
 			'myCREDedit',
 			array(
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'title'   => __( 'Edit Users Balance', 'mycred' ),
-				'close'   => __( 'Close', 'mycred' ),
-				'working' => __( 'Processing...', 'mycred' )
+				'title'   => esc_attr__( 'Edit Users Balance', 'mycred' ),
+				'close'   => esc_attr__( 'Close', 'mycred' ),
+				'working' => esc_attr__( 'Processing...', 'mycred' )
 			)
 		);
 		
@@ -667,12 +699,12 @@ if ( ! function_exists( 'mycred_enqueue_admin' ) ) :
 			'myCREDLog',
 			array(
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'title'   => __( 'Edit Log Entry', 'mycred' ),
-				'close'   => __( 'Close', 'mycred' ),
-				'working' => __( 'Processing...', 'mycred' ),
+				'title'   => esc_attr__( 'Edit Log Entry', 'mycred' ),
+				'close'   => esc_attr__( 'Close', 'mycred' ),
+				'working' => esc_attr__( 'Processing...', 'mycred' ),
 				'messages' => array(
-					'delete_row'  => __( 'Are you sure you want to delete this log entry? This can not be undone!', 'mycred' ),
-					'updated_row' => __( 'Log entry updated', 'mycred' )
+					'delete_row'  => esc_attr__( 'Are you sure you want to delete this log entry? This can not be undone!', 'mycred' ),
+					'updated_row' => esc_attr__( 'Log entry updated', 'mycred' )
 				),
 				'tokens' => array(
 					'delete_row' => wp_create_nonce( 'mycred-delete-log-entry' ),
@@ -722,6 +754,8 @@ endif;
 if ( ! function_exists( 'mycred_plugin_links' ) ) :
 	function mycred_plugin_links( $actions, $plugin_file, $plugin_data, $context )
 	{
+		if ( mycred_is_site_blocked() ) return $actions;
+
 		// Link to Setup
 		if ( ! is_mycred_ready() )
 			$actions['_setup'] = '<a href="' . admin_url( 'plugins.php?page=myCRED-setup' ) . '">' . __( 'Setup', 'mycred' ) . '</a>';
@@ -773,13 +807,13 @@ endif;
 /**
  * Reset Key
  * @since 1.3
- * @version 1.0
+ * @version 1.1
  */
 if ( ! function_exists( 'mycred_reset_key' ) ) :
 	function mycred_reset_key()
 	{
 		$protect = mycred_protect();
-		$protect->reset_key();
+		if ( $protect !== false )
+			$protect->reset_key();
 	}
 endif;
-

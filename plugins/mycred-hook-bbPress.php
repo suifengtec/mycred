@@ -3,7 +3,7 @@
 /**
  * bbPress
  * @since 0.1
- * @version 1.3
+ * @version 1.4
  */
 if ( defined( 'myCRED_VERSION' ) ) {
 
@@ -57,7 +57,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * bbPress Hook
 	 * @since 0.1
-	 * @version 1.3
+	 * @version 1.4
 	 */
 	if ( ! class_exists( 'myCRED_bbPress' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_bbPress extends myCRED_Hook {
@@ -71,7 +71,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'defaults' => array(
 						'new_forum' => array(
 							'creds'    => 1,
-							'log'      => '%plural% for new forum'
+							'log'      => '%plural% for new forum',
+							'limit'    => '0/x'
 						),
 						'delete_forum' => array(
 							'creds'    => 0-1,
@@ -80,7 +81,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						'new_topic' => array(
 							'creds'    => 1,
 							'log'      => '%plural% for new forum topic',
-							'author'   => 0
+							'author'   => 0,
+							'limit'    => '0/x'
 						),
 						'delete_topic' => array(
 							'creds'    => 0-1,
@@ -89,13 +91,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						'fav_topic' => array(
 							'creds'    => 1,
 							'log'      => '%plural% for someone favorited your forum topic',
-							'limit'    => 1
+							'limit'    => '0/x'
 						),
 						'new_reply' => array(
 							'creds'    => 1,
 							'log'      => '%plural% for new forum reply',
 							'author'   => 0,
-							'limit'    => 10,
+							'limit'    => '0/x'
 						),
 						'delete_reply' => array(
 							'creds'    => 0-1,
@@ -160,6 +162,9 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Check if user is excluded
 				if ( $this->core->exclude_user( $forum_author ) ) return;
 
+				// Limit
+				if ( $this->over_hook_limit( 'new_forum', 'new_forum', $forum_author ) ) return;
+
 				// Make sure this is unique event
 				if ( $this->has_entry( 'new_forum', $forum_id, $forum_author ) ) return;
 
@@ -215,6 +220,9 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					if ( bbp_get_forum_author_id( $forum_id ) == $topic_author ) return;
 				}
 
+				// Limit
+				if ( $this->over_hook_limit( 'new_topic', 'new_forum_topic', $topic_author ) ) return;
+
 				// Make sure this is unique event
 				if ( $this->has_entry( 'new_forum_topic', $topic_id, $topic_author ) ) return;
 
@@ -260,17 +268,17 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			 * Topic Added to Favorites
 			 * @by Fee (http://wordpress.org/support/profile/wdfee)
 			 * @since 1.1.1
-			 * @version 1.3
+			 * @version 1.5
 			 */
 			public function fav_topic( $user_id, $topic_id ) {
 				// $user_id is loggedin_user, not author, so get topic author
 				$topic_author = get_post_field( 'post_author', $topic_id );
 
-				// Enforce Daily Limit
-				if ( $this->reached_daily_limit( $topic_author, 'fav_topic' ) ) return;
-
 				// Check if user is excluded (required)
 				if ( $this->core->exclude_user( $topic_author ) || $topic_author == $user_id ) return;
+
+				// Limit
+				if ( $this->over_hook_limit( 'fav_topic', 'topic_favorited', $topic_author ) ) return;
 
 				// Make sure this is a unique event (favorite not from same user)
 				$data = array( 'ref_user' => $user_id, 'ref_type' => 'post' );
@@ -286,15 +294,12 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					$data,
 					$this->mycred_type
 				);
-
-				// Update Limit
-				$this->update_daily_limit( $topic_author, 'fav_topic' );
 			}
 
 			/**
 			 * New Reply
 			 * @since 0.1
-			 * @version 1.4
+			 * @version 1.5
 			 */
 			public function new_reply( $reply_id, $topic_id, $forum_id, $anonymous_data, $reply_author ) {
 				// Check if user is excluded
@@ -303,8 +308,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Check if topic author gets points for their own replies
 				if ( (bool) $this->prefs['new_reply']['author'] === false && bbp_get_topic_author_id( $topic_id ) == $reply_author ) return;
 
-				// Check daily limit
-				if ( $this->reached_daily_limit( $reply_author, 'new_reply' ) ) return;
+				// Limit
+				if ( $this->over_hook_limit( 'new_reply', 'new_forum_reply', $reply_author ) ) return;
 
 				// Make sure this is unique event
 				if ( $this->has_entry( 'new_forum_reply', $reply_id, $reply_author ) ) return;
@@ -319,15 +324,12 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					array( 'ref_type' => 'post' ),
 					$this->mycred_type
 				);
-
-				// Update Limit
-				$this->update_daily_limit( $reply_author, 'new_reply' );
 			}
 
 			/**
 			 * Delete Reply
 			 * @since 1.2
-			 * @version 1.2
+			 * @version 1.2.1
 			 */
 			public function delete_reply( $reply_id ) {
 				// Get Author
@@ -346,9 +348,6 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						'',
 						$this->mycred_type
 					);
-
-					// Update Limit
-					$this->update_daily_limit( $reply_author, 'new_reply', true );
 
 				}
 			}
@@ -380,65 +379,6 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			}
 
 			/**
-			 * Reched Daily Limit
-			 * Checks if a user has reached their daily limit.
-			 * @since 1.2
-			 * @version 1.2
-			 */
-			public function reached_daily_limit( $user_id, $limit ) {
-				// No limit used
-				if ( $this->prefs[ $limit ]['limit'] == 0 ) return false;
-
-				$today = date_i18n( 'Y-m-d' );
-				$current = $this->get_users_limit( $user_id, $limit );
-				if ( empty( $current ) || ! array_key_exists( $today, $current ) )
-					$current[ $today ] = 0;
-
-				if ( $current[ $today ] < $this->prefs[ $limit ]['limit'] ) return false;
-				return true;
-			}
-
-			/**
-			 * Get Users Limit
-			 * @since 1.4
-			 * @version 1.0
-			 */
-			public function get_users_limit( $user_id, $limit ) {
-				$key = 'mycred_bbp_limits_' . $limit;
-				if ( ! $this->is_main_type )
-					$key .= '_' . $this->mycred_type;
-
-				return (array) mycred_get_user_meta( $user_id, $key, '', true );
-			}
-
-			/**
-			 * Update Daily Limit
-			 * Updates a given users daily limit.
-			 * @since 1.2
-			 * @version 1.2
-			 */
-			public function update_daily_limit( $user_id, $limit, $remove = false ) {
-				// No limit used
-				if ( $this->prefs[ $limit ]['limit'] == 0 ) return;
-
-				$today = date_i18n( 'Y-m-d' );
-				$current = $this->get_users_limit( $user_id, $limit );
-				if ( empty( $current ) || ! array_key_exists( $today, $current ) )
-					$current[ $today ] = 0;
-
-				if ( ! $remove )
-					$current[ $today ] = $current[ $today ]+1;
-				else
-					$current[ $today ] = $current[ $today ]-1;
-
-				$key = 'mycred_bbp_limits_' . $limit;
-				if ( ! $this->is_main_type )
-					$key .= '_' . $this->mycred_type;
-
-				mycred_update_user_meta( $user_id, $key, '', $current );
-			}
-
-			/**
 			 * Preferences
 			 * @since 0.1
 			 * @version 1.2
@@ -446,25 +386,29 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			public function preferences() {
 				$prefs = $this->prefs;
 
-				// Update
-				if ( ! isset( $prefs['show_points_in_reply'] ) )
-					$prefs['show_points_in_reply'] = 0;
-				if ( ! isset( $prefs['new_topic']['author'] ) )
-					$prefs['new_topic']['author'] = 0;
-				if ( ! isset( $prefs['fav_topic'] ) )
-					$prefs['fav_topic'] = array( 'creds' => 1, 'log' => '%plural% for someone favorited your forum topic' );
-				if ( ! isset( $prefs['new_reply']['author'] ) )
-					$prefs['new_reply']['author'] = 0;
+				if ( ! isset( $prefs['new_forum']['limit'] ) )
+					$prefs['new_forum']['limit'] = '0/x';
+
+				if ( ! isset( $prefs['new_topic']['limit'] ) )
+					$prefs['new_topic']['limit'] = '0/x';
+
 				if ( ! isset( $prefs['fav_topic']['limit'] ) )
-					$prefs['fav_topic']['limit'] = 0;
+					$prefs['fav_topic']['limit'] = '0/x';
+
 				if ( ! isset( $prefs['new_reply']['limit'] ) )
-					$prefs['new_reply']['limit'] = 0; ?>
+					$prefs['new_reply']['limit'] = '0/x';
+
+?>
 
 <!-- Creds for New Forums -->
 <label for="<?php echo $this->field_id( array( 'new_forum', 'creds' ) ); ?>" class="subheader"><?php echo $this->core->template_tags_general( __( '%plural% for New Forum', 'mycred' ) ); ?></label>
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_forum', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_forum', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_forum']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_forum', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_forum', 'limit' ) ), $this->field_id( array( 'new_forum', 'limit' ) ), $prefs['new_forum']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -491,6 +435,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_topic', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_topic', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_topic']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_topic', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_topic', 'limit' ) ), $this->field_id( array( 'new_topic', 'limit' ) ), $prefs['new_topic']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -523,17 +471,15 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'fav_topic', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'fav_topic', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['fav_topic']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'fav_topic', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'fav_topic', 'limit' ) ), $this->field_id( array( 'fav_topic', 'limit' ) ), $prefs['fav_topic']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'fav_topic', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'fav_topic', 'log' ) ); ?>" id="<?php echo $this->field_id( array( 'fav_topic', 'log' ) ); ?>" value="<?php echo esc_attr( $prefs['fav_topic']['log'] ); ?>" class="long" /></div>
 		<span class="description"><?php echo $this->available_template_tags( array( 'general', 'post' ) ); ?></span>
-	</li>
-	<li class="empty">&nbsp;</li>
-	<li>
-		<label for="<?php echo $this->field_id( array( 'fav_topic', 'limit' ) ); ?>"><?php _e( 'Daily Limit', 'mycred' ); ?></label>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'fav_topic', 'limit' ) ); ?>" id="<?php echo $this->field_id( array( 'fav_topic', 'limit' ) ); ?>" value="<?php echo $this->core->number( $prefs['fav_topic']['limit'] ); ?>" size="8" /></div>
-		<span class="description"><?php _e( 'Use zero for unlimited', 'mycred' ); ?></span>
 	</li>
 </ol>
 <!-- Creds for New Reply -->
@@ -541,6 +487,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_reply', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_reply', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_reply']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_reply', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_reply', 'limit' ) ), $this->field_id( array( 'new_reply', 'limit' ) ), $prefs['new_reply']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -555,17 +505,11 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
-		<label for="<?php echo $this->field_id( array( 'new_reply', 'limit' ) ); ?>"><?php _e( 'Daily Limit', 'mycred' ); ?></label>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_reply', 'limit' ) ); ?>" id="<?php echo $this->field_id( array( 'new_reply', 'limit' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_reply']['limit'] ); ?>" size="8" /></div>
-		<span class="description"><?php _e( 'Use zero for unlimited', 'mycred' ); ?></span>
-	</li>
-	<li class="empty">&nbsp;</li>
-	<li>
 		<input type="checkbox" name="<?php echo $this->field_name( 'show_points_in_reply' ); ?>" id="<?php echo $this->field_id( 'show_points_in_reply' ); ?>" <?php checked( $prefs['show_points_in_reply'], 1 ); ?> value="1" /> <label for="<?php echo $this->field_id( 'show_points_in_reply' ); ?>"><?php echo $this->core->template_tags_general( __( 'Show users %_plural% balance in replies', 'mycred' ) ); ?>.</label>
 	</li>
 </ol>
 <!-- Creds for Deleting Reply -->
-<label for="<?php echo $this->field_id( array( 'delete_reply', 'creds' ) ); ?>" class="subheader"><?php echo $this->core->template_tags_general( __( '%plural% for Topic Deletion', 'mycred' ) ); ?></label>
+<label for="<?php echo $this->field_id( array( 'delete_reply', 'creds' ) ); ?>" class="subheader"><?php echo $this->core->template_tags_general( __( '%plural% for Reply Deletion', 'mycred' ) ); ?></label>
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'delete_reply', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'delete_reply', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['delete_reply']['creds'] ); ?>" size="8" /></div>
@@ -583,15 +527,42 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Sanitise Preference
 			 * @since 1.1.1
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			function sanitise_preferences( $data ) {
-				$new_data = $data;
 
-				$new_data['new_topic']['author'] = ( isset( $data['new_topic']['author'] ) ) ? $data['new_topic']['author'] : 0;
-				$new_data['new_reply']['author'] = ( isset( $data['new_reply']['author'] ) ) ? $data['new_reply']['author'] : 0;
+				if ( isset( $data['new_forum']['limit'] ) && isset( $data['new_forum']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_forum']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_forum']['limit'] = $limit . '/' . $data['new_forum']['limit_by'];
+					unset( $data['new_forum']['limit_by'] );
+				}
 
-				return $new_data;
+				if ( isset( $data['new_topic']['limit'] ) && isset( $data['new_topic']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_topic']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_topic']['limit'] = $limit . '/' . $data['new_topic']['limit_by'];
+					unset( $data['new_topic']['limit_by'] );
+				}
+
+				if ( isset( $data['fav_topic']['limit'] ) && isset( $data['fav_topic']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['fav_topic']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['fav_topic']['limit'] = $limit . '/' . $data['fav_topic']['limit_by'];
+					unset( $data['fav_topic']['limit_by'] );
+				}
+
+				if ( isset( $data['new_reply']['limit'] ) && isset( $data['new_reply']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_reply']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_reply']['limit'] = $limit . '/' . $data['new_reply']['limit_by'];
+					unset( $data['new_reply']['limit_by'] );
+				}
+
+				$data['new_topic']['author'] = ( isset( $data['new_topic']['author'] ) ) ? $data['new_topic']['author'] : 0;
+				$data['new_reply']['author'] = ( isset( $data['new_reply']['author'] ) ) ? $data['new_reply']['author'] : 0;
+
+				return $data;
 			}
 		}
 	}

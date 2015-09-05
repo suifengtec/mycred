@@ -6,9 +6,9 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * NETbilling Payment Gateway
  * @see http://secure.netbilling.com/public/docs/merchant/public/directmode/directmode3protocol.html
  * @since 0.1
- * @version 1.2
+ * @version 1.2.2
  */
-if ( ! class_exists( 'myCRED_NETbilling' ) ) {
+if ( ! class_exists( 'myCRED_NETbilling' ) ) :
 	class myCRED_NETbilling extends myCRED_Payment_Gateway {
 
 		protected $http_code = '';
@@ -17,6 +17,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * Construct
 		 */
 		function __construct( $gateway_prefs ) {
+
 			global $netbilling_errors;
 
 			$types = mycred_get_types();
@@ -32,12 +33,13 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 					'sandbox'          => 0,
 					'account'          => '',
 					'site_tag'         => '',
-					'item_name'        => __( 'Purchase of myCRED %plural%', 'mycred' ),
+					'item_name'        => 'Purchase of myCRED %plural%',
 					'exchange'         => $default_exchange,
 					'cryptokey'        => '',
 					'currency'         => 'USD'
 				)
 			), $gateway_prefs );
+
 		}
 
 		/**
@@ -47,19 +49,21 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.0
 		 */
 		public function IPN_is_valid_call() {
+
 			$result = true;
 
 			// Accounts Match
 			$account = explode( ':', $_REQUEST['Ecom_Ezic_AccountAndSitetag'] );
 			if ( $account[0] != $this->prefs['account'] || $account[1] != $this->prefs['site_tag'] )
 				$result = false;
-					
+
 			// Crypto Check
 			$crypto_check = md5( $this->prefs['cryptokey'] . $_REQUEST['Ecom_Cost_Total'] . $_REQUEST['Ecom_Receipt_Description'] );
 			if ( $crypto_check != $_REQUEST['Ecom_Ezic_Security_HashValue_MD5'] )
 				$result = false;
 
 			return $result;
+
 		}
 
 		/**
@@ -68,7 +72,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.2
 		 */
 		public function process() {
-			
+
 			// Required fields
 			if ( isset( $_REQUEST['Ecom_UserData_salesdata'] ) && isset( $_REQUEST['Ecom_Ezic_Response_TransactionID'] ) && isset( $_REQUEST['Ecom_Cost_Total'] ) ) {
 
@@ -100,21 +104,20 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 
 							// If account is credited, delete the post and it's comments.
 							if ( $this->complete_payment( $pending_payment, $_REQUEST['Ecom_Ezic_Response_TransactionID'] ) )
-								wp_delete_post( $pending_post_id, true );
+								$this->trash_pending_payment( $pending_post_id );
 							else
 								$new_call[] = __( 'Failed to credit users account.', 'mycred' );
-							
 
 						}
-						
+
 						// Log Call
 						if ( ! empty( $new_call ) )
 							$this->log_call( $pending_post_id, $new_call );
 
 					}
-					
+
 				}
-			
+
 			}
 
 		}
@@ -125,9 +128,10 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.1
 		 */
 		public function returning() {
-			if ( isset( $_REQUEST['Ecom_Ezic_AccountAndSitetag'] ) && isset( $_REQUEST['Ecom_UserData_salesdata'] ) ) {
+
+			if ( isset( $_REQUEST['Ecom_Ezic_AccountAndSitetag'] ) && isset( $_REQUEST['Ecom_UserData_salesdata'] ) )
 				$this->process();
-			}
+
 		}
 
 		/**
@@ -136,6 +140,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.3
 		 */
 		public function buy() {
+
 			if ( ! isset( $this->prefs['account'] ) || empty( $this->prefs['account'] ) )
 				wp_die( __( 'Please setup this gateway before attempting to make a purchase!', 'mycred' ) );
 
@@ -151,6 +156,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 
 			// Get Cost
 			$cost = $this->get_cost( $amount, $type );
+			$cost = number_format( $cost, 2, '.', '' );
 
 			$to = $this->get_to();
 			$from = $this->current_user_id;
@@ -193,9 +199,8 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 			$this->get_page_redirect( $hidden_fields, 'https://secure.netbilling.com/gw/native/interactive2.2' );
 			$this->get_page_footer();
 
-			// Exit
-			unset( $this );
 			exit;
+
 		}
 
 		/**
@@ -204,8 +209,10 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.1
 		 */
 		function preferences() {
-			$prefs = $this->prefs; ?>
 
+			$prefs = $this->prefs;
+
+?>
 <label class="subheader" for="<?php echo $this->field_id( 'account' ); ?>"><?php _e( 'Account ID', 'mycred' ); ?></label>
 <ol>
 	<li>
@@ -244,6 +251,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 	</li>
 </ol>
 <?php
+
 		}
 
 		/**
@@ -252,6 +260,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.2
 		 */
 		public function sanitise_preferences( $data ) {
+
 			$new_data = array();
 
 			$new_data['sandbox']   = ( isset( $data['sandbox'] ) ) ? 1 : 0;
@@ -270,6 +279,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 			$new_data['exchange'] = $data['exchange'];
 
 			return $new_data;
+
 		}
 
 		/**
@@ -278,6 +288,7 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 		 * @version 1.0
 		 */
 		protected function validate_cc( $data = array() ) {
+
 			$errors = array();
 
 			// Credit Card
@@ -308,7 +319,9 @@ if ( ! class_exists( 'myCRED_NETbilling' ) ) {
 			}
 
 			return $errors;
+
 		}
+
 	}
-}
+endif;
 ?>

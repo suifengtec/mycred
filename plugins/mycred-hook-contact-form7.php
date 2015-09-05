@@ -25,7 +25,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * Contact Form 7 Hook
 	 * @since 0.1
-	 * @version 1.0
+	 * @version 1.1
 	 */
 	if ( ! class_exists( 'myCRED_Contact_Form7' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_Contact_Form7 extends myCRED_Hook {
@@ -76,18 +76,21 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Successful Form Submission
 			 * @since 0.1
-			 * @version 1.3
+			 * @version 1.4
 			 */
 			public function form_submission( $cf7_form ) {
 				// Login is required
 				if ( ! is_user_logged_in() ) return;
 
+				$form_id = $cf7_form->id;
+				if ( ! isset( $this->prefs[ $form_id ] ) || ! $this->prefs[ $form_id ]['creds'] != 0 ) return;
+
 				// Check for exclusions
 				$user_id = get_current_user_id();
 				if ( $this->core->exclude_user( $user_id ) ) return;
 
-				$form_id = $cf7_form->id;
-				if ( ! isset( $this->prefs[ $form_id ] ) || ! $this->prefs[ $form_id ]['creds'] != 0 ) return;
+				// Limit
+				if ( $this->over_hook_limit( $form_id, 'contact_form_submission' ) ) return;
 
 				$this->core->add_creds(
 					'contact_form_submission',
@@ -103,7 +106,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Preferences for Contact Form 7 Hook
 			 * @since 0.1
-			 * @version 1.0.1
+			 * @version 1.1
 			 */
 			public function preferences() {
 				$prefs = $this->prefs;
@@ -120,9 +123,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					if ( ! isset( $prefs[ $form_id ] ) ) {
 						$prefs[ $form_id ] = array(
 							'creds' => 1,
-							'log'   => ''
+							'log'   => '',
+							'limit' => '0/x'
 						);
 					}
+					
+					if ( ! isset( $prefs[ $form_id ]['limit'] ) )
+						$prefs[ $form_id ]['limit'] = '0/x';
 				}
 
 				// Set pref if empty
@@ -136,6 +143,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $form_id, 'creds' ) ); ?>" id="<?php echo $this->field_id( array( $form_id, 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs[ $form_id ]['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( $form_id, 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( $form_id, 'limit' ) ), $this->field_id( array( $form_id, 'limit' ) ), $prefs[ $form_id ]['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( $form_id, 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -144,6 +155,29 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php			}
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				$forms = $this->get_forms();
+				foreach ( $forms as $form_id => $form_title ) {
+
+					if ( isset( $data[ $form_id ]['limit'] ) && isset( $data[ $form_id ]['limit_by'] ) ) {
+						$limit = sanitize_text_field( $data[ $form_id ]['limit'] );
+						if ( $limit == '' ) $limit = 0;
+						$data[ $form_id ]['limit'] = $limit . '/' . $data[ $form_id ]['limit_by'];
+						unset( $data[ $form_id ]['limit_by'] );
+					}
+
+				}
+
+				return $data;
+
 			}
 		}
 	}

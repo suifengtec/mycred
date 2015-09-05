@@ -4,19 +4,32 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
 /**
  * WooCommerce Setup
  * @since 1.5
- * @version 1.0
+ * @version 1.1
  */
+add_action( 'after_setup_theme', 'mycred_load_woocommerce_reward', 99 );
 if ( ! function_exists( 'mycred_load_woocommerce_reward' ) ) :
-	add_action( 'after_setup_theme', 'mycred_load_woocommerce_reward', 99 );
 	function mycred_load_woocommerce_reward()
 	{
-		if ( ! is_user_logged_in() ) return;
+		add_filter( 'mycred_comment_gets_cred',     'mycred_woo_remove_review_from_comments', 10, 2 );
+		add_action( 'add_meta_boxes_product',       'mycred_woo_add_product_metabox' );
+		add_action( 'save_post',                    'mycred_woo_save_reward_settings' );
+		add_action( 'woocommerce_payment_complete', 'mycred_woo_payout_rewards' );
+	}
+endif;
 
-		$status = apply_filters( 'mycred_woo_reward_status', 'completed' );
+/**
+ * Remove Reviews from Comment Hook
+ * Prevents the comment hook from granting points twice for a review.
+ * @since 1.6.3
+ * @version 1.0
+ */
+if ( ! function_exists( 'mycred_woo_remove_review_from_comments' ) ) :
+	function mycred_woo_remove_review_from_comments( $reply, $comment ) {
 
-		add_action( 'add_meta_boxes_product',              'mycred_woo_add_product_metabox' );
-		add_action( 'save_post',                           'mycred_woo_save_reward_settings' );
-		add_action( 'woocommerce_order_status_' . $status, 'mycred_woo_payout_rewards' );
+		if ( get_post_type( $comment->comment_post_ID ) == 'product' ) return false;
+
+		return $reply;
+
 	}
 endif;
 
@@ -42,7 +55,7 @@ endif;
 /**
  * Product Metabox
  * @since 1.5
- * @version 1.0
+ * @version 1.1
  */
 if ( ! function_exists( 'mycred_woo_product_metabox' ) ) :
 	function mycred_woo_product_metabox( $post )
@@ -58,17 +71,15 @@ if ( ! function_exists( 'mycred_woo_product_metabox' ) ) :
 		}
 
 		$count = 0;
+		$cui = get_current_user_id();
 		foreach ( $types as $type => $label ) {
 			$count ++;
-			$mycred = mycred( $type ); ?>
+			$mycred = mycred( $type );
+			if ( ! $mycred->can_edit_creds( $cui ) ) continue; ?>
 
 		<p class="<?php if ( $count == 1 ) echo 'first'; ?>"><label for="mycred-reward-purchase-with-<?php echo $type; ?>"><input class="toggle-mycred-reward" data-id="<?php echo $type; ?>" <?php if ( $prefs[ $type ] != '' ) echo 'checked="checked"'; ?> type="checkbox" name="mycred_reward[<?php echo $type; ?>][use]" id="mycred-reward-purchase-with-<?php echo $type; ?>" value="<?php echo $prefs[ $type ]; ?>" /> <?php echo $mycred->template_tags_general( __( 'Reward with %plural%', 'mycred' ) ); ?></label></p>
 		<div class="mycred-woo-wrap" id="reward-<?php echo $type; ?>" style="display:<?php if ( $prefs[ $type ] == '' ) echo 'none'; else echo 'block'; ?>">
-			<?php if ( ! $mycred->exclude_user( $post->post_author ) ) : ?>
 			<label><?php echo $mycred->plural(); ?></label> <input type="text" size="8" name="mycred_reward[<?php echo $type; ?>][amount]" value="<?php echo $prefs[ $type ]; ?>" placeholder="<?php echo $mycred->zero(); ?>" />
-			<?php else : ?>
-			<p><?php _e( 'User is excluded from this point type.', 'mycred' ); ?></p>
-			<?php endif; ?>
 		</div>
 <?php
 		} ?>
@@ -182,7 +193,7 @@ if ( ! function_exists( 'mycred_woo_payout_rewards' ) ) :
 endif;
 
 /**
- * WooCommerce Plugin
+ * WooCommerce Product Review
  * @since 1.5
  * @version 1.0
  */
@@ -206,7 +217,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * WooCommerce Product Review Hook
 	 * @since 1.5
-	 * @version 1.0
+	 * @version 1.1
 	 */
 	if ( ! class_exists( 'myCRED_Hook_WooCommerce_Reviews' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_Hook_WooCommerce_Reviews extends myCRED_Hook {
@@ -219,7 +230,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'id'       => 'wooreview',
 					'defaults' => array(
 						'creds' => 1,
-						'log'   => '%plural% for product review'
+						'log'   => '%plural% for product review',
+						'limit' => '0/x'
 					)
 				), $hook_prefs, $type );
 			}
@@ -250,7 +262,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Review Transitions
 			 * @since 1.5
-			 * @version 1.0
+			 * @version 1.2
 			 */
 			public function review_transitions( $new_status, $old_status, $comment ) {
 
@@ -270,16 +282,21 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Check for exclusions
 				if ( $this->core->exclude_user( $comment->user_id ) ) return;
 
+				// Limit
+				if ( $this->over_hook_limit( '', 'product_review', $comment->user_id ) ) return;
+
 				// Execute
-				$this->core->add_creds(
-					'product_review',
-					$comment->user_id,
-					$this->prefs['creds'],
-					$this->prefs['log'],
-					$comment->comment_ID,
-					array( 'ref_type' => 'comment' ),
-					$this->mycred_type
-				);
+				$data = array( 'ref_type' => 'post' );
+				if ( ! $this->core->has_entry( 'product_review', $comment->comment_post_ID, $comment->user_id, $data, $this->mycred_type ) )
+					$this->core->add_creds(
+						'product_review',
+						$comment->user_id,
+						$this->prefs['creds'],
+						$this->prefs['log'],
+						$comment->comment_post_ID,
+						$data,
+						$this->mycred_type
+					);
 
 			}
 
@@ -296,6 +313,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( 'creds' ); ?>" id="<?php echo $this->field_id( 'creds' ); ?>" value="<?php echo $this->core->number( $prefs['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( 'limit' ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( 'limit' ), $this->field_id( 'limit' ), $prefs['limit'] ); ?>
+	</li>
 </ol>
 <label class="subheader"><?php _e( 'Log Template', 'mycred' ); ?></label>
 <ol>
@@ -305,6 +326,24 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				if ( isset( $data['limit'] ) && isset( $data['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['limit'] = $limit . '/' . $data['limit_by'];
+					unset( $data['limit_by'] );
+				}
+
+				return $data;
+
 			}
 		}
 	}

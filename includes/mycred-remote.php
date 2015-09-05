@@ -552,7 +552,7 @@ function mycred_remote_settings_page( $mycred_general )
 	<ol id="myCRED-remote-api-key" class="inline">
 		<li>
 			<label><?php _e( 'Key', 'mycred' ); ?></label>
-			<div class="h2"><input type="text" name="mycred_pref_core[remote][key]" id="myCRED-remote-key" value="<?php echo $settings['key']; ?>" style="width:90%;" placeholder="<?php _e( 'min. 12 characters', 'mycred' ); ?>" /></div>
+			<div class="h2"><input type="text" name="mycred_pref_core[remote][key]" id="myCRED-remote-key" value="<?php echo $settings['key']; ?>" style="width:90%;" placeholder="<?php _e( '16, 24 or 32 characters', 'mycred' ); ?>" /></div>
 			<span class="description"><?php _e( 'Required for this feature to work!<br />Minimum 12 characters.', 'mycred' ); ?></span>
 		</li>
 		<li>

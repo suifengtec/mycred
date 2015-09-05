@@ -4,9 +4,9 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
 /**
  * Events Manager Pro Gateway
  * @since 1.3
- * @version 1.1
+ * @version 1.2
  */
-if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
+if ( ! class_exists( 'EM_Gateway_myCRED' ) && class_exists( 'EM_Gateway' ) ) {
 	class EM_Gateway_myCRED extends EM_Gateway {
 
 		public $gateway = 'mycred';
@@ -37,7 +37,8 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 				'labels'   => array(
 					'header' => __( 'Pay using your %_plural% balance', 'mycred' ),
 					'button' => __( 'Pay Now', 'mycred' ),
-					'link'   => __( 'Pay', 'mycred' )
+					'link'   => __( 'Pay', 'mycred' ),
+					'checkout' => __( '%plural% Cost', 'mycred' )
 				),
 				'messages' => array(
 					'success' => __( 'Thank you for your payment!', 'mycred' ),
@@ -72,6 +73,7 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 			add_filter( 'em_booking_form_tickets_cols',       array( $this, 'ticket_columns' ), 10, 2 );
 			add_action( 'em_booking_form_tickets_col_mycred', array( $this, 'ticket_col' ), 10, 2     );
 			add_filter( 'em_bookings_table_cols_col_action', array( $this, 'bookings_table_actions' ), 10, 2 );
+			add_action( 'em_cart_form_after_totals',          array( $this, 'checkout_total' ) );
 			
 			// Refund
 			if ( $this->prefs['refund'] != 0 )
@@ -165,7 +167,35 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 <td class="em-bookings-ticket-table-points"><?php echo $this->core->format_creds( $price ); ?></td>
 <?php
 		}
-		
+
+		public function checkout_total( $EM_Multiple_Booking ) {
+
+			if ( ! is_user_logged_in() ) return;
+
+			$total = $EM_Multiple_Booking->get_price();
+			if ( $this->single_currency() )
+				$price = $total;
+			else
+				$price = $this->prefs['rate'] * $total;
+
+			$balance = $this->core->get_users_balance( get_current_user_id() );
+			$color = '';
+			if ( $balance < $price )
+				$color = ' style="color:red;"';
+
+?>
+
+<tr>
+	<th colspan="2"><?php echo $this->core->template_tags_general( $this->prefs['labels']['checkout'] ); ?></th>
+	<td><?php echo $this->core->format_creds( $price ); ?></td>
+</tr>
+<tr>
+	<th colspan="2"><?php _e( 'Your Balance', 'mycred' ); ?></th>
+	<td<?php echo $color; ?>><?php echo $this->core->format_creds( $balance ); ?></td>
+</tr>
+<?php
+		}
+
 		/**
 		 * Shows button, not needed if using the new form display
 		 * @since 1.3
@@ -224,7 +254,7 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 					$ok = true;
 					
 					// User is excluded from using this gateway
-					if ( $this->core->exclude_user( $EM_Booking->person->ID ) ) {
+					if ( $this->core->exclude_user( $EM_Booking->person_id ) ) {
 						$EM_Booking->add_error( __( 'You can not pay using this gateway.', 'mycred' ) );
 						$ok = false;
 					}
@@ -235,18 +265,14 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 					}
 					// User has not yet paid (prefered)
 					elseif ( ! $this->has_paid( $EM_Booking ) ) {
-						// Price
-						$price = $this->core->number( $EM_Booking->booking_price );
-						if ( ! $this->single_currency() ) {
-							$exchange_rate = $this->prefs['rate'];
-							$price = $this->core->number( $exchange_rate*$price );
-						}
+						// Get Cost
+						$cost = $this->get_cost( $EM_Booking );
 
 						// Charge
 						$this->core->add_creds(
 							'ticket_purchase',
-							$EM_Booking->person->ID,
-							0-$price,
+							$EM_Booking->person_id,
+							0-$cost,
 							$this->prefs['log']['purchase'],
 							$EM_Booking->event->post_id,
 							array( 'ref_type' => 'post', 'bid' => (int) $EM_Booking->booking_id ),
@@ -254,15 +280,15 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 						);
 						
 						// Log transaction with EM
-						$transaction_id = time() . $EM_Booking->person->ID;
-						$EM_Booking->booking_meta[ $this->gateway ] = array( 'txn_id' => $transaction_id, 'amount' => $price );
+						$transaction_id = time() . $EM_Booking->person_id;
+						$EM_Booking->booking_meta[ $this->gateway ] = array( 'txn_id' => $transaction_id, 'amount' => $cost );
 						$this->record_transaction( $EM_Booking, $EM_Booking->get_price( false, false, true ), get_option( 'dbem_bookings_currency' ), current_time( 'mysql' ), $transaction_id, 'Completed', '' );
 						
 						// Profit sharing
 						if ( $this->prefs['share'] != 0 ) {
 							$event_post = get_post( (int) $EM_Booking->event->post_id );
 							if ( $event_post !== NULL ) {
-								$share = ( $this->prefs['share']/100 ) * $price;
+								$share = ( $this->prefs['share']/100 ) * $cost;
 								$this->core->add_creds(
 									'ticket_sale',
 									$event_post->post_author,
@@ -329,22 +355,19 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 				// Make sure user has paid for this to refund
 				if ( $this->has_paid( $EM_Booking ) ) {
 
-					// Price
-					if ( $this->single_currency() )
-						$price = $this->core->number( $EM_Booking->booking_price );
-					else
-						$price = $this->core->number( $this->prefs['rate']*$EM_Booking->booking_price );
+					// Get Cost
+					$cost = $this->get_cost( $EM_Booking );
 					
 					// Refund
 					if ( $this->prefs['refund'] != 100 )
-						$refund = ( $this->prefs['refund'] / 100 ) * $price;
+						$refund = ( $this->prefs['refund'] / 100 ) * $cost;
 					else
 						$refund = $price;
 				
 					// Charge
 					$this->core->add_creds(
 						'ticket_purchase_refund',
-						$EM_Booking->person->ID,
+						$EM_Booking->person_id,
 						$refund,
 						$this->prefs['log']['refund'],
 						$EM_Booking->event->post_id,
@@ -382,29 +405,47 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 			
 			return $actions;
 		}
-		
+
+		/**
+		 * Get Cost
+		 * @since 1.5.4
+		 * @version 1.0
+		 */
+		public function get_cost( $EM_Booking ) {
+			
+			$price = 0;
+			foreach ( $EM_Booking->get_tickets_bookings()->tickets_bookings as $EM_Ticket_Booking ) {
+		    	$price = $price + $EM_Ticket_Booking->get_price();
+			}
+			//calculate discounts, if any:
+			$discount = $EM_Booking->get_price_discounts_amount('pre') + $EM_Booking->get_price_discounts_amount('post');
+			if ( $discount > 0 ){
+				$price = $price - $discount;
+			}
+
+			$cost = $this->core->number( $price );
+			if ( ! $this->single_currency() ) {
+				$exchange_rate = $this->prefs['rate'];
+				$cost = $this->core->number( $exchange_rate*$cost );
+			}
+			return $cost;
+
+		}
+
 		/**
 		 * Can Pay Check
 		 * Checks if the user can pay for their booking.
 		 * @since 1.2
-		 * @version 1.1
+		 * @version 1.2
 		 */
 		public function can_pay( $EM_Booking ) {
-			$EM_Event = $EM_Booking->get_event();
-			// You cant pay for free events
-			if ( $EM_Event->is_free() ) return false;
 
-			$balance = $this->core->get_users_cred( $EM_Booking->person->ID, $this->mycred_type );
-			if ( $balance <= $this->core->zero() ) return false;
+			$balance = $this->core->get_users_balance( $EM_Booking->person_id, $this->mycred_type );
+			if ( $balance <= 0 ) return false;
 
-			$price = $this->core->number( $EM_Booking->booking_price );
-			if ( $price == $this->core->zero() ) return true;
-			if ( ! $this->single_currency() ) {
-				$exchange_rate = $this->prefs['rate'];
-				$price = $this->core->number( $exchange_rate*$price );
-			}
+			$cost = $this->get_cost( $EM_Booking );
 
-			if ( $balance-$price < $this->core->zero() ) return false;
+			if ( $cost > 0 && $balance < $cost ) return false;
 
 			return true;
 		}
@@ -419,7 +460,7 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 			if ( $this->core->has_entry(
 				'ticket_purchase',
 				$EM_Booking->event->post_id,
-				$EM_Booking->person->ID,
+				$EM_Booking->person_id,
 				array(
 					'ref_type' => 'post',
 					'bid'      => (int) $EM_Booking->booking_id
@@ -434,7 +475,7 @@ if ( ! class_exists( 'EM_Gateway_myCRED' ) ) {
 		/**
 		 * Getway Settings
 		 * @since 1.3
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		function mysettings() {
 			global $page, $action;
@@ -555,6 +596,13 @@ jQuery(function($){
 			<span class="description"><?php _e( 'The button label for payments. No HTML allowed!', 'mycred' ); ?></span>
 		</td>
 	</tr>
+	<tr valign="top">
+		<th scope="row"><?php _e( 'Cart & Checkout Cost', 'mycred' ); ?></th>
+		<td>
+			<input name="mycred_gateway[labels][checkout]" type="text" id="mycred-gateway-labels-button" style="width: 95%" value="<?php echo $this->prefs['labels']['checkout']; ?>" size="45" /><br />
+			<span class="description"><?php echo $this->core->template_tags_general( __( 'Label for cost in %plural%', 'mycred' ) ); ?></span><br /><?php echo $this->core->available_template_tags( array( 'general' ) ); ?></span>
+		</td>
+	</tr>
 </table>
 <h4><?php _e( 'Messages', 'mycred' ); ?></h4>
 <table class='form-table'>
@@ -579,7 +627,7 @@ jQuery(function($){
 		/**
 		 * Update Getway Settings
 		 * @since 1.3
-		 * @version 1.1
+		 * @version 1.2
 		 */
 		function update() {
 			parent::update();
@@ -620,6 +668,7 @@ jQuery(function($){
 			$new_settings['labels']['link'] = sanitize_text_field( stripslashes( $data['labels']['link'] ) );
 			$new_settings['labels']['header'] = sanitize_text_field( stripslashes( $data['labels']['header'] ) );
 			$new_settings['labels']['button'] = sanitize_text_field( stripslashes( $data['labels']['button'] ) );
+			$new_settings['labels']['checkout'] = sanitize_text_field( stripslashes( $data['labels']['checkout'] ) );
 
 			// Messages
 			$new_settings['messages']['success'] = sanitize_text_field( stripslashes( $data['messages']['success'] ) );

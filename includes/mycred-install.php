@@ -8,7 +8,7 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * @since 0.1
  * @version 1.1.1
  */
-if ( ! class_exists( 'myCRED_Install' ) ) {
+if ( ! class_exists( 'myCRED_Install' ) ) :
 	class myCRED_Install {
 
 		public $core;
@@ -27,12 +27,37 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 		 * Compat
 		 * Check to make sure we reach minimum requirements for this plugin to work propery.
 		 * @since 0.1
-		 * @version 1.2
+		 * @version 1.2.1
 		 */
 		public function compat() {
-			
-			die( __( 'Warning! You are using an experimental version of myCRED which you downloaded from the trunk! Your installation can not use this version of myCRED. Please download the latest publicly available version instead!', 'mycred' ) );
+			global $wpdb;
 
+			$message = array();
+			// WordPress check
+			$wp_version = $GLOBALS['wp_version'];
+			if ( version_compare( $wp_version, '3.8', '<' ) && ! defined( 'MYCRED_FOR_OLDER_WP' ) )
+				$message[] = __( 'myCRED requires WordPress 3.8 or higher. Version detected:', 'mycred' ) . ' ' . $wp_version;
+
+			// PHP check
+			$php_version = phpversion();
+			if ( version_compare( $php_version, '5.2.4', '<' ) )
+				$message[] = __( 'myCRED requires PHP 5.2.4 or higher. Version detected: ', 'mycred' ) . ' ' . $php_version;
+
+			// SQL check
+			$sql_version = $wpdb->db_version();
+			if ( version_compare( $sql_version, '5.0', '<' ) )
+				$message[] = __( 'myCRED requires SQL 5.0 or higher. Version detected: ', 'mycred' ) . ' ' . $sql_version;
+
+			// mcrypt library check (if missing, this will cause a fatal error)
+			$extensions = get_loaded_extensions();
+			if ( ! in_array( 'mcrypt', $extensions ) && ! defined( 'MYCRED_DISABLE_PROTECTION' ) )
+				$message[] = __( 'The mcrypt PHP library must be enabled in order to use this plugin! Please check your PHP configuration or contact your host and ask them to enable it for you!', 'mycred' );
+
+			// Not empty $message means there are issues
+			if ( ! empty( $message ) ) {
+				$error_message = implode( "\n", $message );
+				die( __( 'Sorry but your WordPress installation does not reach the minimum requirements for running myCRED. The following errors were given:', 'mycred' ) . "\n" . $error_message );
+			}
 		}
 
 		/**
@@ -73,15 +98,17 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 		/**
 		 * Re-activation
 		 * @since 0.1
-		 * @version 1.3
+		 * @version 1.3.1
 		 */
 		public function reactivate() {
-			do_action( 'mycred_reactivation' );
+
+			do_action( 'mycred_reactivation', $this->ver );
 
 			if ( isset( $_GET['activate-multi'] ) )
 				return;
 
 			set_transient( '_mycred_activation_redirect', true, 60 );
+
 		}
 
 		/**
@@ -90,7 +117,7 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 		 * settings and data once the core is gone.
 		 * @filter 'mycred_uninstall_this'
 		 * @since 0.1
-		 * @version 1.3
+		 * @version 1.4.2
 		 */
 		public function uninstall() {
 			// Everyone should use this filter to delete everything else they have created before returning the option ids.
@@ -98,12 +125,15 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 				'mycred_pref_core',
 				'mycred_pref_hooks',
 				'mycred_pref_addons',
-				'mycred_pref_bank'
+				'mycred_pref_bank',
+				'mycred_pref_remote',
+				'mycred_types',
+				'woocommerce_mycred_settings'
 			) );
 
 			// Delete each option
 			foreach ( $installed as $option_id )
-				delete_option( $GLOBALS['blog_id'], $option_id );
+				delete_option( $option_id );
 
 			// Delete flags
 			delete_option( 'mycred_setup_completed' );
@@ -130,6 +160,7 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 			wp_clear_scheduled_hook( 'mycred_banking_do_compound_batch' );
 			wp_clear_scheduled_hook( 'mycred_banking_interest_payout' );
 			wp_clear_scheduled_hook( 'mycred_banking_interest_do_batch' );
+			wp_clear_scheduled_hook( 'mycred_send_email_notices' );
 
 			global $wpdb;
 
@@ -154,19 +185,33 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
 				delete_site_option( 'mycred_network' );
 			
 			// Delete custom post types
-			$post_types = apply_filters( 'mycred_custom_post_types', array( 'mycred_rank', 'mycred_email_notice' ) );
+			$post_types = array( 'mycred_rank', 'mycred_email_notice', 'mycred_badge', 'buycred_payment' );
 			if ( is_array( $post_types ) || ! empty( $post_types ) )
 				$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE post_type IN ('" . implode( "','", $post_types ) . "');" );
-			
-			// Delete all point types
+
+			// Delete custom post type meta
+			$post_meta = array( 'myCRED_sell_content', 'mycred_rank_min', 'mycred_rank_max', 'badge_requirements', 'mycred_email_instance', 'mycred_email_settings', 'mycred_email_ctype', 'mycred_email_styling', 'ctype' );
+			$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE meta_key IN ('" . implode( "','", $post_meta ) . "');" );
+
+			// Delete all point type balances and settings
 			$mycred_types = mycred_get_types();
-			foreach ( $mycred_types as $type => $label )
+			foreach ( $mycred_types as $type => $label ) {
+				delete_option( 'mycred_pref_core_' . $type );
 				$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s;", $type ) );
+				$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key = %s;", $type . '_total' ) );
+			}
+
+			// Delete Badge Connections
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE %s;", 'mycred_badge%' ) );
+
+			// Delete Rank Connections
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->usermeta} WHERE meta_key IN ( %s, %s );", 'mycred_rank%', 'mycred_rank' ) );
 
 			// Good bye.
 		}
 	}
-}
+endif;
+
 /**
  * myCRED_Setup class
  *
@@ -175,7 +220,7 @@ if ( ! class_exists( 'myCRED_Install' ) ) {
  * @since 0.1
  * @version 1.0
  */
-if ( ! class_exists( 'myCRED_Setup' ) ) {
+if ( ! class_exists( 'myCRED_Setup' ) ) :
 	class myCRED_Setup {
 
 		public $step;
@@ -460,7 +505,7 @@ if ( ! class_exists( 'myCRED_Setup' ) ) {
 		<li>
 			<label><?php _e( 'Decimals', 'mycred' ); ?></label>
 			<h2><input type="text" name="myCRED-format-dec" id="myCRED-format-dec" value="<?php echo $default_decimals; ?>" size="6" /></h2>
-			<span class="description"><?php _e( 'Use zero for no decimals.', 'mycred' ); ?></span>
+			<span class="description"><?php _e( 'Use zero for no decimals or maximum 20.', 'mycred' ); ?></span>
 		</li>
 	</ol>
 	<h2 class="shadow"><?php _e( 'Presentation', 'mycred' ); ?></h2>
@@ -533,7 +578,7 @@ if ( ! class_exists( 'myCRED_Setup' ) ) {
 		<li class="block">
 			<label for="myCRED-max"><?php echo $mycred->template_tags_general( __( 'Maximum %plural% payouts', 'mycred' ) ); ?></label>
 			<div class="h2"><input type="text" name="myCRED-max" id="myCRED-max" value="<?php echo $max; ?>" size="8" /></div>
-			<div class="description"><?php _e( 'As an added security, you can set the maximum amount a user can gain or loose in a single instance. If used, make sure this is the maximum amount a user would be able to transfer, buy, or spend in your store. Use zero to disable.', 'mycred' ); ?></div>
+			<span class="description"><?php _e( 'As an added security, you can set the maximum amount a user can gain or loose in a single instance. If used, make sure this is the maximum amount a user would be able to transfer, buy, or spend in your store. Use zero to disable.', 'mycred' ); ?></span>
 		</li>
 	</ol>
 	<h2><?php _e( 'Excludes', 'mycred' ); ?></h2>
@@ -583,5 +628,6 @@ if ( ! class_exists( 'myCRED_Setup' ) ) {
 <?php
 		}
 	}
-}
+endif;
+
 ?>

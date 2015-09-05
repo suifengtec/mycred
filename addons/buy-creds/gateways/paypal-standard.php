@@ -5,15 +5,16 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * myCRED_PayPal class
  * PayPal Payments Standard - Payment Gateway
  * @since 0.1
- * @version 1.2
+ * @version 1.2.1
  */
-if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
+if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) :
 	class myCRED_PayPal_Standard extends myCRED_Payment_Gateway {
 
 		/**
 		 * Construct
 		 */
 		function __construct( $gateway_prefs ) {
+
 			$types = mycred_get_types();
 			$default_exchange = array();
 			foreach ( $types as $type => $label )
@@ -27,10 +28,11 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 					'sandbox'          => 0,
 					'currency'         => '',
 					'account'          => '',
-					'item_name'        => __( 'Purchase of myCRED %plural%', 'mycred' ),
+					'item_name'        => 'Purchase of myCRED %plural%',
 					'exchange'         => $default_exchange
 				)
 			), $gateway_prefs );
+
 		}
 
 		/**
@@ -40,6 +42,7 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 		 * @version 1.0
 		 */
 		public function IPN_is_valid_call() {
+
 			// PayPal Host
 			if ( $this->sandbox_mode )
 				$host = 'www.sandbox.paypal.com';
@@ -108,12 +111,12 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 				$attempt++;
 
 			} while ( $attempt <= $curl_attempts );
-			
-			if ( strcmp( $result, "VERIFIED" ) == 0 ) {
+
+			if ( strcmp( $result, "VERIFIED" ) == 0 )
 				return true;
-			}
 
 			return false;
+
 		}
 
 		/**
@@ -160,20 +163,20 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 
 							// If account is credited, delete the post and it's comments.
 							if ( $this->complete_payment( $pending_payment, $_POST['txn_id'] ) )
-								wp_delete_post( $pending_post_id, true );
+								$this->trash_pending_payment( $pending_post_id );
 							else
 								$new_call[] = __( 'Failed to credit users account.', 'mycred' );
 
 						}
-						
+
 						// Log Call
 						if ( ! empty( $new_call ) )
 							$this->log_call( $pending_post_id, $new_call );
 
 					}
-					
+
 				}
-			
+
 			}
 
 		}
@@ -184,12 +187,14 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 		 * @version 1.0.1
 		 */
 		public function returning() {
+
 			if ( isset( $_REQUEST['tx'] ) && isset( $_REQUEST['st'] ) && $_REQUEST['st'] == 'Completed' ) {
 				$this->get_page_header( __( 'Success', 'mycred' ), $this->get_thankyou() );
 				echo '<h1 style="text-align:center;">' . __( 'Thank you for your purchase', 'mycred' ) . '</h1>';
 				$this->get_page_footer();
 				exit;
 			}
+
 		}
 
 		/**
@@ -198,6 +203,7 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 		 * @version 1.2
 		 */
 		public function buy() {
+
 			if ( ! isset( $this->prefs['account'] ) || empty( $this->prefs['account'] ) )
 				wp_die( __( 'Please setup this gateway before attempting to make a purchase!', 'mycred' ) );
 
@@ -254,7 +260,7 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 				'return'        => $thankyou_url,
 				'notify_url'    => $this->callback_url(),
 				'rm'            => 2,
-				'cbt'           => __( 'Return to ', 'mycred' ) . get_bloginfo( 'name' ),
+				'cbt'           => sprintf( _x( 'Return to %s', 'Return label. %s = Website name', 'mycred' ), get_bloginfo( 'name' ) ),
 				'cancel_return' => $cancel_url
 			);
 
@@ -263,9 +269,8 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 			$this->get_page_redirect( $hidden_fields, $location );
 			$this->get_page_footer();
 
-			// Exit
-			unset( $this );
 			exit;
+
 		}
 
 		/**
@@ -274,12 +279,14 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 		 * @version 1.0
 		 */
 		function preferences() {
-			$prefs = $this->prefs; ?>
 
+			$prefs = $this->prefs;
+
+?>
 <label class="subheader" for="<?php echo $this->field_id( 'currency' ); ?>"><?php _e( 'Currency', 'mycred' ); ?></label>
 <ol>
 	<li>
-		<?php $this->currencies_dropdown( 'currency', 'mycred-gateway-paypal-currency' ); ?>
+		<?php $this->currencies_dropdown( 'currency', 'mycred-gateway-paypal-standard-currency' ); ?>
 	</li>
 </ol>
 <label class="subheader" for="<?php echo $this->field_id( 'account' ); ?>"><?php _e( 'Account Email', 'mycred' ); ?></label>
@@ -299,14 +306,8 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 <ol>
 	<?php $this->exchange_rate_setup(); ?>
 </ol>
-<label class="subheader"><?php _e( 'IPN Address', 'mycred' ); ?></label>
-<ol>
-	<li>
-		<code style="padding: 12px;display:block;"><?php echo $this->callback_url(); ?></code>
-		<p><?php _e( 'For this gateway to work, you must login to your PayPal account and under "Profile" > "Selling Tools" enable "Instant Payment Notifications". Make sure the "Notification URL" is set to the above address and that you have selected "Receive IPN messages (Enabled)".', 'mycred' ); ?></p>
-	</li>
-</ol>
 <?php
+
 		}
 
 		/**
@@ -315,6 +316,7 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 		 * @version 1.3
 		 */
 		public function sanitise_preferences( $data ) {
+
 			$new_data = array();
 
 			$new_data['sandbox']   = ( isset( $data['sandbox'] ) ) ? 1 : 0;
@@ -332,7 +334,9 @@ if ( ! class_exists( 'myCRED_PayPal_Standard' ) ) {
 			$new_data['exchange'] = $data['exchange'];
 
 			return $new_data;
+
 		}
+
 	}
-}
+endif;
 ?>

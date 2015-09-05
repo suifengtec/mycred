@@ -1,9 +1,29 @@
 /**
  * myCRED Management Scripts
  * @since 1.3
- * @version 1.2
+ * @version 1.3
  */
 jQuery(function($) {
+
+	/**
+	 * Make sure new point type key is
+	 * correctly formatted. Only lowercase letters and underscores
+	 * are allowed. Warn user if needed.
+	 */
+	$( '#mycred-new-ctype-key-value' ).on( 'change', function(){
+
+		var ctype_key = $(this).val();
+		var re = /^[a-z_]+$/;
+		if ( ! re.test( ctype_key ) ) {
+			$(this).css( 'border-color', 'red' );
+			$( '#mycred-ctype-warning' ).css( 'color', 'red' );
+		}
+		else {
+			$(this).css( 'border-color', 'green' );
+			$( '#mycred-ctype-warning' ).css( 'color', '' );
+		}
+
+	});
 
 	/**
 	 * Empty Log AJAX Caller
@@ -177,7 +197,7 @@ jQuery(function($) {
 				$( '#mycred-length-counter' ).text( response.data.length );
 			}
 		});
-	}
+	};
 
 	/**
 	 * Generate Key Trigger
@@ -199,4 +219,65 @@ jQuery(function($) {
 	$( '#myCRED-remote-key' ).keyup(function(){
 		$( '#mycred-length-counter' ).text( $(this).val().length );
 	});
+
+	/**
+	 * Adjust Decimals AJAX Caller
+	 */
+	var mycred_adjust_max_decimals = function( button, label, decval ) {
+		$.ajax({
+			type     : "POST",
+			data     : {
+				action   : 'mycred-action-max-decimals',
+				token    : myCREDmanage.token,
+				decimals : decval
+			},
+			dataType : "JSON",
+			url      : myCREDmanage.ajaxurl,
+			beforeSend : function() {
+				button.attr( 'value', myCREDmanage.working );
+				button.attr( 'disabled', 'disabled' );
+			},
+			success  : function( response ) {
+				if ( response.success ) {
+					button.val( response.data.label );
+					setTimeout(function(){
+						window.location.href = response.data.url;
+					}, 4000 );
+				}
+				else {
+					button.val( response.data );
+					setTimeout(function(){
+						button.removeAttr( 'disabled' );
+						button.val( label );
+					}, 4000 );
+				}
+			}
+		});
+	};
+
+	/**
+	 * Show / Hide Update Button
+	 */
+	$( '#mycred-adjust-decimal-places' ).change(function(){
+		var originaldec = $(this).data( 'org' );
+		var newvalue = $(this).val();
+
+		if ( originaldec != newvalue )
+			$( '#mycred-update-log-decimals' ).show();
+		else
+			$( '#mycred-update-log-decimals' ).hide();
+		
+	});
+
+	/**
+	 * Update Log Decimals Trigger
+	 */
+	$( '#mycred-update-log-decimals' ).click(function(){
+
+		if ( confirm( myCREDmanage.decimals ) ) {
+			mycred_adjust_max_decimals( $(this), $(this).val(), $( '#mycred-adjust-decimal-places' ).val() );
+		}
+
+	});
+
 });

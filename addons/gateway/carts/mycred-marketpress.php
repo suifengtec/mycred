@@ -6,8 +6,8 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * @since 1.1
  * @version 1.3
  */
+add_action( 'mp_load_gateway_plugins', 'mycred_init_marketpress_gateway' );
 if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
-	add_action( 'mp_load_gateway_plugins', 'mycred_init_marketpress_gateway' );
 	function mycred_init_marketpress_gateway()
 	{
 		if ( ! class_exists( 'MP_Gateway_API' ) ) return;
@@ -199,7 +199,7 @@ if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
 			 * @param array $cart. Contains the cart contents for the current blog, global cart if $mp->global_cart is true
 			 * @param array $shipping_info. Contains shipping info and email in case you need it
 			 * @since 1.1
-			 * @version 1.2.1
+			 * @version 1.3
 			 */
 			function process_payment( $cart, $shipping_info ) {
 				global $mp;
@@ -279,8 +279,12 @@ if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
 							$quantity = $data['quantity'];
 							$cost = $price*$quantity;
 
+							// Get profit share
+							$percentage = apply_filters( 'mycred_marketpress_profit_share', $settings['gateways']['mycred']['profit_share_percent'], $order, $product, $this );
+							if ( $percentage == 0 ) continue;
+
 							// Calculate Share
-							$share = ( $settings['gateways']['mycred']['profit_share_percent'] / 100 ) * $cost;
+							$share = ( $percentage / 100 ) * $cost;
 
 							// Payout
 							$this->mycred->add_creds(
@@ -450,7 +454,7 @@ if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
 				<th scope="row"><label for="mycred-instructions"><?php _e( 'User Instructions', 'mycred' ); ?></label></th>
 				<td>
 					<span class="description"><?php _e( 'Information to show users before payment.', 'mycred' ); ?></span>
-					<p><?php wp_editor( $settings['gateways']['mycred']['instructions'] , 'mycred-instructions', array( 'textarea_name' => 'mp[gateways][mycred][instructions]' ) ); ?><br />
+					<p><?php wp_editor( $settings['gateways']['mycred']['instructions'] , 'mycredinstructions', array( 'textarea_name' => 'mp[gateways][mycred][instructions]' ) ); ?><br />
 					<span class="description"><?php echo $mycred->available_template_tags( array( 'general' ), '%balance% or %balance_f%' ); ?></span></p>
 				</td>
 			</tr>
@@ -458,7 +462,7 @@ if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
 				<th scope="row"><label for="mycred-confirmation"><?php _e( 'Confirmation Information', 'mycred' ); ?></label></th>
 				<td>
 					<span class="description"><?php _e( 'Information to display on the order confirmation page. - HTML allowed', 'mycred' ); ?></span>
-					<p><?php wp_editor( $settings['gateways']['mycred']['confirmation'], 'mycred-confirmation', array( 'textarea_name' => 'mp[gateways][mycred][confirmation]' ) ); ?><br />
+					<p><?php wp_editor( $settings['gateways']['mycred']['confirmation'], 'mycredconfirmation', array( 'textarea_name' => 'mp[gateways][mycred][confirmation]' ) ); ?><br />
 					<span class="description"><?php echo $mycred->available_template_tags( array( 'general' ), '%balance% or %balance_f%' ); ?></span></p>
 				</td>
 			</tr>
@@ -507,8 +511,10 @@ if ( ! function_exists( 'mycred_init_marketpress_gateway' ) ) {
 			
 				$settings['gateways']['mycred']['lowfunds'] = stripslashes( wp_filter_post_kses( $settings['gateways']['mycred']['lowfunds'] ) );
 				$settings['gateways']['mycred']['visitors'] = stripslashes( wp_filter_post_kses( $settings['gateways']['mycred']['visitors'] ) );
-				$settings['gateways']['mycred']['instructions'] = stripslashes( wp_filter_post_kses( $settings['gateways']['mycred']['instructions'] ) );
-				$settings['gateways']['mycred']['confirmation'] = stripslashes( wp_filter_post_kses( $settings['gateways']['mycred']['confirmation'] ) );
+
+				$allowed_tags = $this->mycred->allowed_html_tags();
+				$settings['gateways']['mycred']['instructions'] = wp_kses( $settings['gateways']['mycred']['instructions'], $allowed_tags );
+				$settings['gateways']['mycred']['confirmation'] = wp_kses( $settings['gateways']['mycred']['confirmation'], $allowed_tags );
 
 				// Email (no html)
 				$settings['gateways']['mycred']['email'] = stripslashes( wp_filter_nohtml_kses( $settings['gateways']['mycred']['email'] ) );

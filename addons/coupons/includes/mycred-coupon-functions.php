@@ -92,10 +92,11 @@ endif;
  * to a given user. Requires you to provide a log entry template.
  * @action mycred_use_coupon
  * @since 1.4
- * @version 1.0
+ * @version 1.0.2
  */
 if ( ! function_exists( 'mycred_use_coupon' ) ) :
 	function mycred_use_coupon( $code = '', $user_id = 0 ) {
+
 		// Missing required information
 		if ( empty( $code ) || $user_id === 0 ) return 'missing';
 
@@ -107,8 +108,9 @@ if ( ! function_exists( 'mycred_use_coupon' ) ) :
 			return 'missing';
 
 		// Check Expiration
+		$now = current_time( 'timestamp' );
 		$expires = mycred_get_coupon_expire_date( $coupon->ID, true );
-		if ( ! empty( $expires ) && $expires !== 0 && $expires < date_i18n( 'U' ) ) {
+		if ( ! empty( $expires ) && $expires !== 0 && $expires <= $now ) {
 			wp_trash_post( $coupon->ID );
 			return 'expired';
 		}
@@ -124,7 +126,7 @@ if ( ! function_exists( 'mycred_use_coupon' ) ) :
 		}
 
 		$type = get_post_meta( $coupon->ID, 'type', true );
-		if ( empty( $type ) )
+		if ( $type == '' )
 			$type = 'mycred_default';
 
 		$mycred = mycred( $type );
@@ -153,9 +155,8 @@ if ( ! function_exists( 'mycred_use_coupon' ) ) :
 		$value = $mycred->number( $value );
 
 		// Get Coupon log template
-		$settings = mycred_get_option( 'mycred_pref_core' );
 		if ( ! isset( $mycred->core['coupons']['log'] ) )
-			$mycred->core['coupons']['log'] = __( 'Coupon redemption', 'mycred' );
+			$mycred->core['coupons']['log'] = 'Coupon redemption';
 
 		// Apply Coupon
 		$mycred->add_creds(
@@ -179,6 +180,7 @@ if ( ! function_exists( 'mycred_use_coupon' ) ) :
 			wp_trash_post( $coupon->ID );
 
 		return $mycred->number( $users_balance+$value );
+
 	}
 endif;
 
@@ -195,11 +197,11 @@ if ( ! function_exists( 'mycred_get_users_coupon_count' ) ) :
 
 		// Count how many times a given user has used a given coupon
 		$result = $wpdb->get_var( $wpdb->prepare( "
-SELECT COUNT( * ) 
-FROM {$mycred->log_table} 
-WHERE ref = %s 
-	AND user_id = %d
-	AND data = %s;", 'coupon', $user_id, $code ) );
+			SELECT COUNT( * ) 
+			FROM {$mycred->log_table} 
+			WHERE ref = %s 
+				AND user_id = %d
+				AND data = %s;", 'coupon', $user_id, $code ) );
 
 		return apply_filters( 'mycred_get_users_coupon_count', $result, $code, $user_id );
 	}
@@ -279,11 +281,11 @@ endif;
  * Get Coupons Minimum Balance Requirement
  * @filter mycred_coupon_min_balance
  * @since 1.4
- * @version 1.0
+ * @version 1.0.1
  */
 if ( ! function_exists( 'mycred_get_coupon_min_balance' ) ) :
 	function mycred_get_coupon_min_balance( $post_id = 0 ) {
-		return apply_filters( 'mycred_coupon_min_balance', get_post_meta( $post_id, 'min', true ), $post_id );
+		return apply_filters( 'mycred_coupon_min_balance', get_post_meta( $post_id, 'min_balance', true ), $post_id );
 	}
 endif;
 
@@ -291,11 +293,11 @@ endif;
  * Get Coupons Maximum Balance Requirement
  * @filter mycred_coupon_max_balance
  * @since 1.4
- * @version 1.0
+ * @version 1.0.1
  */
 if ( ! function_exists( 'mycred_get_coupon_max_balance' ) ) :
 	function mycred_get_coupon_max_balance( $post_id = 0 ) {
-		return apply_filters( 'mycred_coupon_max_balance', get_post_meta( $post_id, 'max', true ), $post_id );
+		return apply_filters( 'mycred_coupon_max_balance', get_post_meta( $post_id, 'max_balance', true ), $post_id );
 	}
 endif;
 ?>

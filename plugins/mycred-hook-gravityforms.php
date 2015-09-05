@@ -3,7 +3,7 @@
 /**
  * Gravity Forms
  * @since 1.4
- * @version 1.1
+ * @version 1.2
  */
 if ( defined( 'myCRED_VERSION' ) ) {
 
@@ -65,6 +65,9 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Make sure form is setup and user is not excluded
 				if ( ! isset( $this->prefs[ $form_id ] ) || $this->core->exclude_user( $user_id ) ) return;
 
+				// Limit
+				if ( $this->over_hook_limit( $form_id, 'gravity_form_submission' ) ) return;
+
 				// Default values
 				$amount = $this->prefs[ $form_id ]['creds'];
 				$entry = $this->prefs[ $form_id ]['log'];
@@ -121,9 +124,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					if ( ! isset( $prefs[ $form->id ] ) ) {
 						$prefs[ $form->id ] = array(
 							'creds' => 1,
-							'log'   => ''
+							'log'   => '',
+							'limit' => '0/x'
 						);
 					}
+
+					if ( ! isset( $prefs[ $form->id ]['limit'] ) )
+						$prefs[ $form->id ]['limit'] = '0/x';
 				}
 
 				// Set pref if empty
@@ -137,6 +144,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $form->id, 'creds' ) ); ?>" id="<?php echo $this->field_id( array( $form->id, 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs[ $form->id ]['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( $form->id, 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( $form->id, 'limit' ) ), $this->field_id( array( $form->id, 'limit' ) ), $prefs[ $form->id ]['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( $form->id, 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -145,6 +156,29 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php			}
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				$forms = RGFormsModel::get_forms();
+				foreach ( $forms as $form ) {
+
+					if ( isset( $data[ $form->id ]['limit'] ) && isset( $data[ $form->id ]['limit_by'] ) ) {
+						$limit = sanitize_text_field( $data[ $form->id ]['limit'] );
+						if ( $limit == '' ) $limit = 0;
+						$data[ $form->id ]['limit'] = $limit . '/' . $data[ $form->id ]['limit_by'];
+						unset( $data[ $form->id ]['limit_by'] );
+					}
+
+				}
+
+				return $data;
+
 			}
 		}
 	}

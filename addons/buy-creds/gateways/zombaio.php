@@ -5,15 +5,16 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * myCRED_Zombaio class
  * Zombaio Payment Gateway
  * @since 1.1
- * @version 1.1
+ * @version 1.1.1
  */
-if ( ! class_exists( 'myCRED_Zombaio' ) ) {
+if ( ! class_exists( 'myCRED_Zombaio' ) ) :
 	class myCRED_Zombaio extends myCRED_Payment_Gateway {
 
 		/**
 		 * Construct
 		 */
 		function __construct( $gateway_prefs ) {
+
 			parent::__construct( array(
 				'id'               => 'zombaio',
 				'label'            => 'Zombaio',
@@ -28,6 +29,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 					'bypass_ipn'       => 0
 				)
 			), $gateway_prefs );
+
 		}
 
 		/**
@@ -36,6 +38,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.0
 		 */
 		public function process() {
+
 			if ( isset( $_GET['wp_zombaio_ips'] ) && $_GET['wp_zombaio_ips'] == 1 ) {
 				$ips = $this->load_ipn_ips();
 				if ( isset( $_GET['csv'] ) && $_GET['csv'] == 1 ) {
@@ -50,6 +53,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 				exit;
 			}
 			$this->handle_call();
+
 		}
 
 		/**
@@ -58,12 +62,14 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.0
 		 */
 		public function verify_ipn_ip() {
+
 			if ( $this->prefs['bypass_ipn'] ) return true;
 
 			$ips = $this->load_ipn_ips();
 			if ( $ips && in_array( $_SERVER['REMOTE_ADDR'], $ips ) ) return true;
 
 			return false;
+
 		}
 
 		/**
@@ -72,10 +78,12 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.0
 		 */
 		public function load_ipn_ips() {
+
 			$request = new WP_Http();
 			$data = $request->request( 'http://www.zombaio.com/ip_list.txt' );
 			$data = explode( '|', $data['body'] );
 			return $data;
+
 		}
 
 		/**
@@ -85,6 +93,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.1
 		 */
 		public function IPN_is_valid_call() {
+
 			$result = true;
 
 			// Check password
@@ -100,6 +109,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 				$result = false;
 
 			return $result;
+
 		}
 
 		/**
@@ -108,6 +118,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.2
 		 */
 		public function handle_call() {
+
 			$outcome = 'FAILED';
 
 			// ZOA Validation
@@ -167,14 +178,14 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 
 							// If account is credited, delete the post and it's comments.
 							if ( $this->complete_payment( $pending_payment, $_GET['TransactionID'] ) ) {
-								wp_delete_post( $pending_post_id, true );
+								$this->trash_pending_payment( $pending_post_id );
 								$outcome = 'COMPLETED';
 							}
 							else
 								$new_call[] = __( 'Failed to credit users account.', 'mycred' );
 
 						}
-						
+
 						// Log Call
 						if ( ! empty( $new_call ) )
 							$this->log_call( $pending_post_id, $new_call );
@@ -189,6 +200,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 				die( 'OK' );
 			else
 				die( 'ERROR' );
+
 		}
 
 		/**
@@ -197,6 +209,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.2
 		 */
 		public function buy() {
+
 			if ( ! isset( $this->prefs['site_id'] ) || empty( $this->prefs['site_id'] ) )
 				wp_die( __( 'Please setup this gateway before attempting to make a purchase!', 'mycred' ) );
 
@@ -235,19 +248,20 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 			$this->get_page_redirect( $hidden_fields, $location );
 			$this->get_page_footer();
 
-			// Exit
-			unset( $this );
 			exit;
+
 		}
 
 		/**
 		 * Preferences
 		 * @since 1.1
-		 * @version 1.0
+		 * @version 1.0.1
 		 */
 		function preferences() {
-			$prefs = $this->prefs; ?>
 
+			$prefs = $this->prefs;
+
+?>
 <label class="subheader" for="<?php echo $this->field_id( 'site_id' ); ?>"><?php _e( 'Site ID', 'mycred' ); ?></label>
 <ol>
 	<li>
@@ -275,7 +289,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 <label class="subheader" for="<?php echo $this->field_id( 'bypass_ipn' ); ?>"><?php _e( 'IP Verification', 'mycred' ); ?></label>
 <ol>
 	<li>
-			<input type="checkbox" name="<?php echo $this->field_name( 'bypass_ipn' ); ?>" id="<?php echo $this->field_id( 'bypass_ipn' ); ?>" value="1"<?php checked( $prefs['bypass_ipn'], 1 ); ?> /> <?php _e( 'Do not verify that callbacks are coming from Zombaio.', 'mycred' ); ?>
+		<label for="<?php echo $this->field_id( 'bypass_ipn' ); ?>"><input type="checkbox" name="<?php echo $this->field_name( 'bypass_ipn' ); ?>" id="<?php echo $this->field_id( 'bypass_ipn' ); ?>" value="1"<?php checked( $prefs['bypass_ipn'], 1 ); ?> /> <?php _e( 'Do not verify that callbacks are coming from Zombaio.', 'mycred' ); ?></label>
 	</li>
 </ol>
 <label class="subheader" for="<?php echo $this->field_id( 'lang' ); ?>"><?php _e( 'Language', 'mycred' ); ?></label>
@@ -293,6 +307,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 	</li>
 </ol>
 <?php
+
 		}
 
 		/**
@@ -301,6 +316,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.0
 		 */
 		public function sanitise_preferences( $data ) {
+
 			$new_data = array();
 
 			$new_data['sandbox']    = ( isset( $data['sandbox'] ) ) ? 1 : 0;
@@ -312,6 +328,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 			$new_data['lang']       = sanitize_text_field( $data['lang'] );
 
 			return $new_data;
+
 		}
 
 		/**
@@ -320,6 +337,7 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 		 * @version 1.0
 		 */
 		public function lang_dropdown( $name ) {
+
 			$languages = array(
 				'ZOM' => 'Let Zombaio Detect Language',
 				'US'  => 'English',
@@ -342,7 +360,9 @@ if ( ! class_exists( 'myCRED_Zombaio' ) ) {
 				echo '>' . $cname . '</option>';
 			}
 			echo '</select>';
+
 		}
+
 	}
-}
+endif;
 ?>

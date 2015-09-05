@@ -3,7 +3,7 @@
 /**
  * Simple:Press
  * @since 1.3.3
- * @version 1.1
+ * @version 1.2
  */
 if ( defined( 'myCRED_VERSION' ) ) {
 
@@ -15,7 +15,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	add_filter( 'mycred_setup_hooks', 'SimplePress_myCRED_Hook' );
 	function SimplePress_myCRED_Hook( $installed ) {
 		$installed['hook_simplepress'] = array(
-			'title'       => __( 'Simple:Press' ),
+			'title'       => 'Simple:Press',
 			'description' => __( 'Awards %_plural% for Simple:Press actions.', 'mycred' ),
 			'callback'    => array( 'myCRED_SimplePress' )
 		);
@@ -25,7 +25,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * Simple:Press Hook
 	 * @since 1.3.3
-	 * @version 1.1
+	 * @version 1.2
 	 */
 	if ( ! class_exists( 'myCRED_SimplePress' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_SimplePress extends myCRED_Hook {
@@ -39,7 +39,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'defaults' => array(
 						'new_topic' => array(
 							'creds'    => 1,
-							'log'      => '%plural% for new forum topic'
+							'log'      => '%plural% for new forum topic',
+							'limit'    => '0/x'
 						),
 						'delete_topic' => array(
 							'creds'    => 0-1,
@@ -49,7 +50,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 							'creds'    => 1,
 							'log'      => '%plural% for new topic post',
 							'author'   => 0,
-							'limit'    => 10,
+							'limit'    => '0/x'
 						),
 						'delete_post' => array(
 							'creds'    => 0-1,
@@ -120,7 +121,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * New Topic
 			 * @since 1.3.3
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function new_topic( $post ) {
 				if ( $post['action'] != 'topic' ) return;
@@ -133,6 +134,9 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				
 				// Check if user is excluded
 				if ( $this->core->exclude_user( $topic_author ) ) return;
+
+				// Limit
+				if ( $this->over_hook_limit( 'new_topic', 'new_forum_topic', $topic_author ) ) return;
 
 				// Make sure this is unique event
 				if ( $this->has_entry( 'new_forum_topic', $topic_id, $topic_author ) ) return;
@@ -181,7 +185,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * New Post
 			 * @since 1.3.3
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function new_post( $post ) {
 				if ( $post['action'] != 'post' ) return;
@@ -200,8 +204,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					if ( $this->get_topic_author( $topic_id ) == $post_author ) return;
 				}
 
-				// Check daily limit
-				if ( $this->reached_daily_limit( $post_author, 'new_post' ) ) return;
+				// Limit
+				if ( $this->over_hook_limit( 'new_post', 'new_topic_post', $post_author ) ) return;
 
 				// Make sure this is unique event
 				if ( $this->has_entry( 'new_topic_post', $post_id, $post_author ) ) return;
@@ -216,9 +220,6 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'simplepress',
 					$this->mycred_type
 				);
-
-				// Update Limit
-				$this->update_daily_limit( $post_author, 'new_post' );
 			}
 
 			/**
@@ -251,52 +252,6 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			}
 
 			/**
-			 * Reched Daily Limit
-			 * Checks if a user has reached their daily limit.
-			 * @since 1.3.3
-			 * @version 1.1
-			 */
-			public function reached_daily_limit( $user_id, $id ) {
-				// No limit used
-				if ( $this->prefs[ $id ]['limit'] == 0 ) return false;
-				$today = date_i18n( 'Y-m-d' );
-
-				$key = 'mycred_simplepress_limits_' . $id;
-				if ( ! $this->is_main_type )
-					$key .= '_' . $this->mycred_type;
-
-				$current = mycred_get_user_meta( $user_id, $key, '', true );
-				if ( empty( $current ) || ! array_key_exists( $today, (array) $current ) ) $current[$today] = 0;
-				if ( $current[ $today ] < $this->prefs[ $id ]['limit'] ) return false;
-				return true;
-			}
-
-			/**
-			 * Update Daily Limit
-			 * Updates a given users daily limit.
-			 * @since 1.3.3
-			 * @version 1.1
-			 */
-			public function update_daily_limit( $user_id, $id ) {
-				// No limit used
-				if ( $this->prefs[ $id ]['limit'] == 0 ) return;
-
-				$today = date_i18n( 'Y-m-d' );
-
-				$key = 'mycred_simplepress_limits_' . $id;
-				if ( ! $this->is_main_type )
-					$key .= '_' . $this->mycred_type;
-
-				$current = mycred_get_user_meta( $user_id, $key, '', true );
-				if ( empty( $current ) || ! array_key_exists( $today, (array) $current ) )
-					$current[ $today ] = 0;
-
-				$current[ $today ] = $current[ $today ]+1;
-
-				mycred_update_user_meta( $user_id, $key, '', $current );
-			}
-
-			/**
 			 * Get SimplePress Topic Author ID
 			 * @since 1.3.3
 			 * @version 1.0
@@ -325,6 +280,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_topic', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_topic', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_topic']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_topic', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_topic', 'limit' ) ), $this->field_id( array( 'new_topic', 'limit' ) ), $prefs['new_topic']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_topic', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -351,6 +310,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_post', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_post', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_post']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_post', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_post', 'limit' ) ), $this->field_id( array( 'new_post', 'limit' ) ), $prefs['new_post']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_post', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -361,12 +324,6 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<input type="checkbox" name="<?php echo $this->field_name( array( 'new_post' => 'author' ) ); ?>" id="<?php echo $this->field_id( array( 'new_post' => 'author' ) ); ?>" <?php checked( $prefs['new_post']['author'], 1 ); ?> value="1" />
 		<label for="<?php echo $this->field_id( array( 'new_post' => 'author' ) ); ?>"><?php echo $this->core->template_tags_general( __( 'Topic authors can receive %_plural% for posting on their own Topic', 'mycred' ) ); ?></label>
-	</li>
-	<li class="empty">&nbsp;</li>
-	<li>
-		<label for="<?php echo $this->field_id( array( 'new_post', 'limit' ) ); ?>"><?php _e( 'Daily Limit', 'mycred' ); ?></label>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_post', 'limit' ) ); ?>" id="<?php echo $this->field_id( array( 'new_post', 'limit' ) ); ?>" value="<?php echo abs( $prefs['new_post']['limit'] ); ?>" size="8" /></div>
-		<span class="description"><?php _e( 'Use zero for unlimited', 'mycred' ); ?></span>
 	</li>
 </ol>
 <!-- Creds for Deleting Post -->
@@ -388,12 +345,27 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Sanitise Preference
 			 * @since 1.3.3
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			function sanitise_preferences( $data ) {
-				$new_data = $data;
-				$new_data['new_post']['author'] = ( isset( $data['new_post']['author'] ) ) ? $data['new_post']['author'] : 0;
-				return $new_data;
+
+				if ( isset( $data['new_topic']['limit'] ) && isset( $data['new_topic']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_topic']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_topic']['limit'] = $limit . '/' . $data['new_topic']['limit_by'];
+					unset( $data['new_topic']['limit_by'] );
+				}
+
+				if ( isset( $data['new_post']['limit'] ) && isset( $data['new_post']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_post']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_post']['limit'] = $limit . '/' . $data['new_post']['limit_by'];
+					unset( $data['new_post']['limit_by'] );
+				}
+
+				$data['new_post']['author'] = ( isset( $data['new_post']['author'] ) ) ? $data['new_post']['author'] : 0;
+				return $data;
+
 			}
 		}
 	}

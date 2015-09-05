@@ -16,9 +16,9 @@ var done = {};
 /**
  * View Handler
  * @since 1.2
- * @version 1.0
+ * @version 1.1
  */
-function mycred_view_video( id, state, custom_logic, custom_interval, key ) {
+function mycred_view_video( id, state, custom_logic, custom_interval, key, ctype ) {
 
 	var videoid = id;
 
@@ -49,7 +49,7 @@ function mycred_view_video( id, state, custom_logic, custom_interval, key ) {
 		if ( logic[ id ] == 'play' ) {
 			// As soon as we start playing we award points
 			if ( videostate == 1 && done[ id ] === undefined )
-				mycred_video_call( videoid, key, videostate, '', '' );
+				mycred_video_call( videoid, key, videostate, '', '', ctype );
 		}
 
 		// Points first when video has ended
@@ -71,7 +71,7 @@ function mycred_view_video( id, state, custom_logic, custom_interval, key ) {
 				clearInterval( timer );
 
 				// Notify myCRED
-				mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ] );
+				mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ], ctype );
 
 				// Reset
 				seconds[ id ] = 0;
@@ -97,14 +97,14 @@ function mycred_view_video( id, state, custom_logic, custom_interval, key ) {
 					var laps = parseInt( interval[ id ] / 1000, 10 );
 					seconds[ id ] = seconds[ id ] + laps;
 					// key, state, id, actions, seconds, duration
-					mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ] );
+					mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ], ctype );
 				}, interval[ id ] );
 			}
 
 			// Video has ended
 			else if ( state == 0 ) {
 				clearInterval( timer );
-				mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ] );
+				mycred_video_call( videoid, key, videostate, actions[ videoid ], seconds[ videoid ], ctype );
 
 				seconds[ id ] = 0;
 				actions[ id ] = '';
@@ -116,26 +116,17 @@ function mycred_view_video( id, state, custom_logic, custom_interval, key ) {
 				clearInterval( timer );
 			}	
 		}
-		else {
-			//console.log( 'Unknown logic request: ' + logic[ id ] );
-		}
-	}
-	else {
-		//console.log( 'State: ' + videostate );
 	}
 }
 
 /**
  * AJAX call handler
  * @since 1.2
- * @version 1.0
+ * @version 1.1
  */
-function mycred_video_call( id, key, state, actions, seconds ) {
-	
-	//console.log( 'Incoming AJAX request' );
+function mycred_video_call( id, key, state, actions, seconds, pointtype ) {
 	
 	if ( done[ id ] === undefined ) {
-		//console.log( 'Connecting' );
 
 		if ( duration[ id ] === undefined )
 			duration[ id ] = 0;
@@ -149,27 +140,20 @@ function mycred_video_call( id, key, state, actions, seconds ) {
 				video_a  : actions,
 				video_b  : seconds,
 				video_c  : duration[ id ],
-				video_d  : state
+				video_d  : state,
+				type     : pointtype
 			},
 			dataType   : "JSON",
 			url        : myCRED_Video.ajaxurl,
-			// Before we start
-			beforeSend : function() {},
-			// On Successful Communication
 			success    : function( data ) {
+
 				console.log( data );
 
 				// Add to done list
 				if ( data.status === 'max' )
 					done[ id ] = data.amount;
-			},
-			// Error (sent to console)
-			error      : function( jqXHR, textStatus, errorThrown ) {
-				console.log( jqXHR+':'+textStatus+':'+errorThrown );
+
 			}
 		});
-	}
-	else {
-		//console.log( 'Video marked as done!' );
 	}
 }

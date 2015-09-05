@@ -10,12 +10,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * Register Hook
 	 * @since 1.0.8
-	 * @version 1.1
+	 * @version 1.2
 	 */
 	add_filter( 'mycred_setup_hooks', 'badgeOS_myCRED_Hook', 10, 2 );
 	function badgeOS_myCRED_Hook( $installed, $type = 'mycred_default' ) {
-		if ( $type != 'mycred_default' ) return $installed;
-
 		$installed['badgeos'] = array(
 			'title'       => __( 'BadgeOS', 'mycred' ),
 			'description' => __( 'Default settings for each BadgeOS Achievement type. These settings may be overridden for individual achievement type.', 'mycred' ),
@@ -38,7 +36,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * BadgeOS Hook
 	 * @since 1.0.8
-	 * @version 1.0
+	 * @version 1.1
 	 */
 	if ( ! class_exists( 'myCRED_Hook_BadgeOS' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_Hook_BadgeOS extends myCRED_Hook {
@@ -51,6 +49,12 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'id'       => 'badgeos',
 					'defaults' => ''
 				), $hook_prefs, $type );
+
+				$key = '_mycred_values';
+				if ( ! $this->is_main_type )
+					$key .= '_' . $this->mycred_type;
+
+				$this->metakey = $key;
 			}
 
 			/**
@@ -77,8 +81,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				foreach ( $badge_post_types as $post_type ) {
 					// Add Meta Box
 					add_meta_box(
-						'mycred_badgeos_' . $post_type,
-						__( 'myCRED', 'mycred' ),
+						'mycred_badgeos_' . $post_type . '_' . $this->mycred_type,
+						$this->core->plural(),
 						array( $this, 'render_meta_box' ),
 						$post_type,
 						'side',
@@ -90,32 +94,37 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Render Meta Box
 			 * @since 1.0.8
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			public function render_meta_box( $post ) {
 				// Setup is needed
 				if ( ! isset( $this->prefs[ $post->post_type ] ) ) {
-					$message = sprintf( __( 'Please setup your <a href="%s">default settings</a> before using this feature.', 'mycred' ), admin_url( 'admin.php?page=myCRED_page_hooks' ) );
+					$page = 'myCRED_page_hooks';
+					if ( ! $this->is_main_type )
+						$page = 'myCRED_' . $this->mycred_type . '_page_hooks';
+					$message = sprintf( __( 'Please setup your <a href="%s">default settings</a> before using this feature.', 'mycred' ), admin_url( 'admin.php?page=' . $page ) );
 					echo '<p>' . $message . '</p>';
+					return;
 				}
+
+				$post_key = 'mycred_values' . $this->mycred_type;
 
 				// Prep Achievement Data
 				$prefs = $this->prefs;
-				$mycred = mycred();
-				$achievement_data = get_post_meta( $post->ID, '_mycred_values', true );
-				if ( empty( $achievement_data ) )
+				$achievement_data = get_post_meta( $post->ID, $this->metakey, true );
+				if ( $achievement_data == '' )
 					$achievement_data = $prefs[ $post->post_type ]; ?>
 
-<p><strong><?php echo $mycred->template_tags_general( __( '%plural% to Award', 'mycred' ) ); ?></strong></p>
+<p><strong><?php echo $this->core->template_tags_general( __( '%plural% to Award', 'mycred' ) ); ?></strong></p>
 <p>
-	<label class="screen-reader-text" for="mycred-values-creds"><?php echo $mycred->template_tags_general( __( '%plural% to Award', 'mycred' ) ); ?></label>
-	<input type="text" name="mycred_values[creds]" id="mycred-values-creds" value="<?php echo $mycred->number( $achievement_data['creds'] ); ?>" size="8" />
+	<label class="screen-reader-text" for="mycred-values-<?php echo $this->mycred_type; ?>-creds"><?php echo $this->core->template_tags_general( __( '%plural% to Award', 'mycred' ) ); ?></label>
+	<input type="text" name="<?php echo $post_key; ?>[creds]" id="mycred-values-<?php echo $this->mycred_type; ?>-creds" value="<?php echo $this->core->number( $achievement_data['creds'] ); ?>" size="8" />
 	<span class="description"><?php _e( 'Use zero to disable', 'mycred' ); ?></span>
 </p>
 <p><strong><?php _e( 'Log Template', 'mycred' ); ?></strong></p>
 <p>
-	<label class="screen-reader-text" for="mycred-values-log"><?php _e( 'Log Template', 'mycred' ); ?></label>
-	<input type="text" name="mycred_values[log]" id="mycred-values-log" value="<?php echo esc_attr( $achievement_data['log'] ); ?>" style="width:99%;" />
+	<label class="screen-reader-text" for="mycred-values-<?php echo $this->mycred_type; ?>-log"><?php _e( 'Log Template', 'mycred' ); ?></label>
+	<input type="text" name="<?php echo $post_key; ?>[log]" id="mycred-values-<?php echo $this->mycred_type; ?>-log" value="<?php echo esc_attr( $achievement_data['log'] ); ?>" style="width:99%;" />
 </p>
 <?php
 			// If deduction is enabled
@@ -123,8 +132,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 
 <p><strong><?php _e( 'Deduction Log Template', 'mycred' ); ?></strong></p>
 <p>
-	<label class="screen-reader-text" for="mycred-values-log"><?php _e( 'Log Template', 'mycred' ); ?></label>
-	<input type="text" name="mycred_values[deduct_log]" id="mycred-values-deduct-log" value="<?php echo esc_attr( $achievement_data['deduct_log'] ); ?>" style="width:99%;" />
+	<label class="screen-reader-text" for="mycred-values-<?php echo $this->mycred_type; ?>-log"><?php _e( 'Log Template', 'mycred' ); ?></label>
+	<input type="text" name="<?php echo $post_key; ?>[deduct_log]" id="mycred-values-deduct-<?php echo $this->mycred_type; ?>-log" value="<?php echo esc_attr( $achievement_data['deduct_log'] ); ?>" style="width:99%;" />
 </p>
 <?php
 				}
@@ -133,7 +142,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Save Achievement Data
 			 * @since 1.0.8
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function save_achivement_data( $post_id ) {
 				// Post Type
@@ -142,38 +151,44 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Make sure this is a BadgeOS Object
 				if ( ! in_array( $post_type, badgeos_get_achievement_types_slugs() ) ) return;
 
+				$post_key = 'mycred_values' . $this->mycred_type;
+
 				// Make sure preference is set
-				if ( ! isset( $this->prefs[ $post_type ] ) || ! isset( $_POST['mycred_values']['creds'] ) || ! isset( $_POST['mycred_values']['log'] ) )
+				if ( ! isset( $this->prefs[ $post_type ] ) || ! isset( $_POST[ $post_key ]['creds'] ) || ! isset( $_POST[ $post_key ]['log'] ) )
 					return;
 
 				// Only save if the settings differ, otherwise we default
-				if ( $_POST['mycred_values']['creds'] == $this->prefs[ $post_type ]['creds'] &&
-					 $_POST['mycred_values']['log'] == $this->prefs[ $post_type ]['log'] ) return;
+				if ( $_POST[ $post_key ]['creds'] == $this->prefs[ $post_type ]['creds'] &&
+					 $_POST[ $post_key ]['log'] == $this->prefs[ $post_type ]['log'] ) {
+				
+					delete_post_meta( $post_id, $this->metakey );
+					return;	 
+				}
 
 				$data = array();
 
 				// Creds
-				if ( ! empty( $_POST['mycred_values']['creds'] ) && $_POST['mycred_values']['creds'] != $this->prefs[ $post_type ]['creds'] )
-					$data['creds'] = $this->core->number( $_POST['mycred_values']['creds'] );
+				if ( ! empty( $_POST[ $post_key ]['creds'] ) && $_POST[ $post_key ]['creds'] != $this->prefs[ $post_type ]['creds'] )
+					$data['creds'] = $this->core->number( $_POST[ $post_key ]['creds'] );
 				else
 					$data['creds'] = $this->core->number( $this->prefs[ $post_type ]['creds'] );
 
 				// Log template
-				if ( ! empty( $_POST['mycred_values']['log'] ) && $_POST['mycred_values']['log'] != $this->prefs[ $post_type ]['log'] )
-					$data['log'] = strip_tags( $_POST['mycred_values']['log'] );
+				if ( ! empty( $_POST[ $post_key ]['log'] ) && $_POST[ $post_key ]['log'] != $this->prefs[ $post_type ]['log'] )
+					$data['log'] = strip_tags( $_POST[ $post_key ]['log'] );
 				else
 					$data['log'] = strip_tags( $this->prefs[ $post_type ]['log'] );
 
 				// If deduction is enabled save log template
 				if ( $this->prefs[ $post_type ]['deduct'] == 1 ) {
-					if ( ! empty( $_POST['mycred_values']['deduct_log'] ) && $_POST['mycred_values']['deduct_log'] != $this->prefs[ $post_type ]['deduct_log'] )
-						$data['deduct_log'] = strip_tags( $_POST['mycred_values']['deduct_log'] );
+					if ( ! empty( $_POST[ $post_key ]['deduct_log'] ) && $_POST[ $post_key ]['deduct_log'] != $this->prefs[ $post_type ]['deduct_log'] )
+						$data['deduct_log'] = strip_tags( $_POST[ $post_key ]['deduct_log'] );
 					else
 						$data['deduct_log'] = strip_tags( $this->prefs[ $post_type ]['deduct_log'] );
 				}
 
 				// Update sales values
-				update_post_meta( $post_id, '_mycred_values', $data );
+				update_post_meta( $post_id, $this->metakey, $data );
 			}
 
 			/**
@@ -181,7 +196,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			 * Run by BadgeOS when ever needed, we make sure settings are not zero otherwise
 			 * award points whenever this hook fires.
 			 * @since 1.0.8
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			public function award_achievent( $user_id, $achievement_id ) {
 				$post_type = get_post_type( $achievement_id );
@@ -189,8 +204,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				if ( ! isset( $this->prefs[ $post_type ]['creds'] ) ) return;
 
 				// Get achievemen data
-				$achievement_data = get_post_meta( $achievement_id, '_mycred_values', true );
-				if ( empty( $achievement_data ) )
+				$achievement_data = get_post_meta( $achievement_id, $this->metakey, true );
+				if ( $achievement_data == '' )
 					$achievement_data = $this->prefs[ $post_type ];
 
 				// Make sure its not disabled
@@ -204,7 +219,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					$achievement_data['creds'],
 					$achievement_data['log'],
 					$achievement_id,
-					array( 'ref_type' => 'post' )
+					array( 'ref_type' => 'post' ),
+					$this->mycred_type
 				);
 			}
 
@@ -212,7 +228,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			 * Revoke Achievement
 			 * Run by BadgeOS when a users achievement is revoed.
 			 * @since 1.0.8
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function revoke_achievement( $user_id, $achievement_id ) {
 				$post_type = get_post_type( $achievement_id );
@@ -220,8 +236,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				if ( ! isset( $this->prefs[ $post_type ]['creds'] ) ) return;
 
 				// Get achievemen data
-				$achievement_data = get_post_meta( $achievement_id, '_mycred_values', true );
-				if ( empty( $achievement_data ) )
+				$achievement_data = get_post_meta( $achievement_id, $this->metakey, true );
+				if ( $achievement_data == '' )
 					$achievement_data = $this->prefs[ $post_type ];
 
 				// Make sure its not disabled
@@ -235,7 +251,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					0-$achievement_data['creds'],
 					$achievement_data['deduct_log'],
 					$achievement_id,
-					array( 'ref_type' => 'post' )
+					array( 'ref_type' => 'post' ),
+					$this->mycred_type
 				);
 			}
 
@@ -269,7 +286,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( $post_type, 'log' ) ); ?>"><?php _e( 'Default Log template', 'mycred' ); ?></label>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $post_type, 'log' ) ); ?>" id="<?php echo $this->field_id( array( $form_id, 'log' ) ); ?>" value="<?php echo esc_attr( $prefs[ $post_type ]['log'] ); ?>" class="long" /></div>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $post_type, 'log' ) ); ?>" id="<?php echo $this->field_id( array( $post_type, 'log' ) ); ?>" value="<?php echo esc_attr( $prefs[ $post_type ]['log'] ); ?>" class="long" /></div>
 		<span class="description"><?php echo $this->available_template_tags( array( 'general', 'post' ) ); ?></span>
 	</li>
 	<li>
@@ -279,7 +296,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( $post_type, 'deduct_log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $post_type, 'deduct_log' ) ); ?>" id="<?php echo $this->field_id( array( $form_id, 'deduct_log' ) ); ?>" value="<?php echo esc_attr( $prefs[ $post_type ]['deduct_log'] ); ?>" class="long" /></div>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( $post_type, 'deduct_log' ) ); ?>" id="<?php echo $this->field_id( array( $post_type, 'deduct_log' ) ); ?>" value="<?php echo esc_attr( $prefs[ $post_type ]['deduct_log'] ); ?>" class="long" /></div>
 		<span class="description"><?php echo $this->available_template_tags( array( 'general', 'post' ) ); ?></span>
 	</li>
 </ol>

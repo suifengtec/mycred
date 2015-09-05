@@ -73,7 +73,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			 * as pending we save it for a later try.
 			 *
 			 * @since 1.0.5
-			 * @version 1.1
+			 * @version 1.1.1
 			 */
 			public function admin_init() {
 				$types = array();
@@ -112,7 +112,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						if ( $this->core->exclude_user( $user->ID ) === true ) continue;
 
 						// Make sure this is a unique event
-						if ( $this->core->has_entry( 'site_subscription', '', $user->ID ) ) continue;
+						if ( $this->core->has_entry( 'site_subscription', 0, $user->ID ) ) continue;
 
 						// Site Subscriptions
 						if ( $type == 'site' ) {
@@ -160,7 +160,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 							if ( $this->core->exclude_user( $user->ID ) === true ) continue;
 
 							// Start with making sure this is a unique event
-							if ( $this->core->has_entry( 'comment_subscription', $id, $comment->user_id ) ) continue;
+							if ( $this->core->has_entry( 'comment_subscription', $id, $user->ID ) ) continue;
 
 							$post_ids = array();
 

@@ -5,7 +5,7 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * myCRED_Admin class
  * Manages everything concerning the WordPress admin area.
  * @since 0.1
- * @version 1.2
+ * @version 1.3
  */
 if ( ! class_exists( 'myCRED_Admin' ) ) {
 	class myCRED_Admin {
@@ -25,7 +25,7 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 		/**
 		 * Load
 		 * @since 0.1
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		public function load() {
 			// Admin Styling
@@ -40,17 +40,15 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 			global $bp;
 
 			// Check if BuddyPress is being used
-			if ( is_object( $bp ) && isset( $bp->version ) && version_compare( $bp->version, '2.0', '>=' ) && bp_is_active( 'xprofile' ) )
+			if ( is_object( $bp ) && isset( $bp->version ) && bp_is_active( 'xprofile' ) )
 				$this->using_bp = true;
 
 			// Edit Profile
 			if ( ! $this->using_bp )
 				add_action( 'edit_user_profile', array( $this, 'user_nav' ) );
-			else
-				add_action( 'bp_members_admin_profile_nav', array( $this, 'bp_user_nav' ), 10, 2 );
 
 			add_action( 'personal_options',   array( $this, 'show_my_balance' ) );
-			add_filter( 'mycred_admin_pages', array( $this, 'edit_profile_menu' ) );
+			add_filter( 'mycred_admin_pages', array( $this, 'edit_profile_menu' ), 10, 2 );
 			add_action( 'mycred_init',        array( $this, 'edit_profile_actions' ) );
 
 			// Sortable Column
@@ -65,7 +63,7 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 		/**
 		 * Profile Actions
 		 * @since 1.5
-		 * @version 1.0
+		 * @version 1.0.2
 		 */
 		public function edit_profile_actions() {
 
@@ -78,7 +76,7 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 
 				if ( wp_verify_nonce( $token, 'mycred-adjust-balance' ) ) {
 
-					$ctype = sanitize_key( $ctype );
+					$ctype = sanitize_text_field( $ctype );
 					$mycred = mycred( $ctype );
 
 					// Enforce requirement for log entry
@@ -118,7 +116,7 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 			// Exclude
 			elseif ( isset( $_GET['page'] ) && $_GET['page'] == 'mycred-edit-balance' && isset( $_GET['action'] ) && $_GET['action'] == 'exclude' ) {
 
-				$ctype = sanitize_key( $_GET['ctype'] );
+				$ctype = sanitize_text_field( $_GET['ctype'] );
 				$mycred = mycred( $ctype );
 
 				// Make sure we can edit creds
@@ -156,6 +154,7 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 
 							// Remove Users balance
 							mycred_delete_user_meta( $user_id, $ctype );
+							mycred_delete_user_meta( $user_id, $ctype, '_total' );
 
 							global $wpdb;
 
@@ -268,27 +267,9 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 		/**
 		 * Admin Header
 		 * @since 0.1
-		 * @version 1.3
+		 * @version 1.4
 		 */
 		public function admin_header() {
-			global $wp_version;
-
-			// Old navigation menu
-			if ( version_compare( $wp_version, '3.8', '<' ) ) {
-				$image = plugins_url( 'assets/images/logo-menu.png', myCRED_THIS ); ?>
-
-<!-- Support for pre 3.8 menus -->
-<style type="text/css">
-<?php foreach ( $mycred_types as $type => $label ) { if ( $mycred_type == 'mycred_default' ) $name = ''; else $name = '_' . $type; ?>
-#adminmenu .toplevel_page_myCRED<?php echo $name; ?> div.wp-menu-image { background-image: url(<?php echo $image; ?>); background-position: 1px -28px; }
-#adminmenu .toplevel_page_myCRED<?php echo $name; ?>:hover div.wp-menu-image, 
-#adminmenu .toplevel_page_myCRED<?php echo $name; ?>.current div.wp-menu-image, 
-#adminmenu .toplevel_page_myCRED<?php echo $name; ?> .wp-menu-open div.wp-menu-image { background-position: 1px 0; }
-<?php } ?>
-</style>
-<?php
-			}
-
 			$screen = get_current_screen();
 			if ( $screen->id == 'users' ) {
 				wp_enqueue_script( 'mycred-inline-edit' );
@@ -411,7 +392,9 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 
 			// Show total
 			$total = mycred_query_users_total( $user_id, $column_name );
-			$balance .= '<small style="display:block;">' . sprintf( __( 'Total: %s', 'mycred' ), $mycred->format_number( $total ) ) . '</small>';
+			$balance .= '<small style="display:block;">' . sprintf( '<strong>%s</strong>: %s', __( 'Total', 'mycred' ), $mycred->format_number( $total ) ) . '</small>';
+
+			$balance = apply_filters( 'mycred_users_balance_column', $balance, $user_id, $column_name );
 
 			$page = 'myCRED';
 			if ( $column_name != 'mycred_default' )
@@ -454,13 +437,13 @@ if ( ! class_exists( 'myCRED_Admin' ) ) {
 		/**
 		 * Add Admin Page
 		 * @since 1.5
-		 * @version 1.0
+		 * @version 1.0.1
 		 */
-		public function edit_profile_menu( $pages = array() ) {
+		public function edit_profile_menu( $pages = array(), $mycred ) {
 			$pages[] = add_users_page(
 				__( 'Edit Balance', 'mycred' ),
 				__( 'Edit Balance', 'mycred' ),
-				'read',
+				$mycred->edit_creds_cap(),
 				'mycred-edit-balance',
 				array( $this, 'edit_profile_screen' )
 			);
@@ -554,7 +537,7 @@ ul#profile-nav li a:hover, ul#profile-nav li.nav-tab-active a {text-decoration: 
 		/**
 		 * Edit Profile Screen
 		 * @since 1.5
-		 * @version 1.0
+		 * @version 1.0.1
 		 */
 		public function edit_profile_screen() {
 			if ( ! isset( $_GET['user_id'] ) ) return;
@@ -564,7 +547,7 @@ ul#profile-nav li a:hover, ul#profile-nav li.nav-tab-active a {text-decoration: 
 			if ( ! isset( $_GET['ctype'] ) )
 				$type = 'mycred_default';
 			else
-				$type = sanitize_key( $_GET['ctype'] );
+				$type = sanitize_text_field( $_GET['ctype'] );
 
 			$mycred = mycred( $type );
 
@@ -638,7 +621,7 @@ div#edit-balance-page.wrap form#your-profile h3 { margin-top: 3em; }
 	<script type="text/javascript">
 jQuery(function($) {
 	$( 'a#mycred-exclude-this-user' ).click(function(){
-		if ( ! confirm( '<?php _e( 'Warning! Excluding this user will result in their balance being deleted along with any entries currently in your log! This can not be undone!', 'mycred' ); ?>' ) )
+		if ( ! confirm( '<?php echo esc_js( esc_attr__( 'Warning! Excluding this user will result in their balance being deleted along with any entries currently in your log! This can not be undone!', 'mycred' ) ); ?>' ) )
 			return false;
 	});
 });
@@ -706,13 +689,13 @@ jQuery(function($) {
 		/**
 		 * Adjust Users Balance
 		 * @since 0.1
-		 * @version 1.2
+		 * @version 1.2.1
 		 */
 		public function adjust_users_balance( $user ) {
 			if ( ! isset( $_GET['ctype'] ) )
 				$type = 'mycred_default';
 			else
-				$type = sanitize_key( $_GET['ctype'] );
+				$type = sanitize_text_field( $_GET['ctype'] );
 
 			$mycred = mycred( $type );
 
@@ -747,18 +730,23 @@ jQuery(function($) {
 		 * Admin Footer
 		 * Inserts the Inline Edit Form modal.
 		 * @since 1.2
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		public function admin_footer() {
+
+			// Security
+			if ( ! $this->core->can_edit_creds() ) return;
+
 			$screen = get_current_screen();
-			if ( $screen->id != 'users' ) return;
 
-			if ( $this->core->can_edit_creds() && ! $this->core->can_edit_plugin() )
-				$req = '(<strong>' . __( 'required', 'mycred' ) . '</strong>)'; 
-			else
-				$req = '(' . __( 'optional', 'mycred' ) . ')';
+			if ( $screen->id == 'users' ) {
 
-			ob_start(); ?>
+				if ( $this->core->can_edit_creds() && ! $this->core->can_edit_plugin() )
+					$req = '(<strong>' . __( 'required', 'mycred' ) . '</strong>)'; 
+				else
+					$req = '(' . __( 'optional', 'mycred' ) . ')';
+
+				ob_start(); ?>
 
 <div id="edit-mycred-balance" style="display: none;">
 	<div class="mycred-adjustment-form">
@@ -777,10 +765,67 @@ jQuery(function($) {
 </div>
 <?php
 
-			$content = ob_get_contents();
-			ob_end_clean();
+				$content = ob_get_contents();
+				ob_end_clean();
 
-			echo apply_filters( 'mycred_admin_inline_editor', $content );
+				echo apply_filters( 'mycred_admin_inline_editor', $content );
+
+			}
+
+			// Insert tabs for each point type. Only used if BuddyPress 2.1 is installed
+			elseif ( $screen->id == 'user-edit' || $screen->id == 'profile' || $screen->id == 'users_page_bp-profile-edit' ) {
+
+				global $bp;
+				if ( $this->using_bp && version_compare( $bp->version, '2.1', '>=' ) ) {
+
+					$types = mycred_get_types();
+
+					$user_id = get_current_user_id();
+					if ( isset( $_GET['user_id'] ) )
+						$user_id = (int) $_GET['user_id'];
+
+					$tabs = array();
+					foreach ( $types as $type => $label ) {
+						$mycred = mycred( $type );
+						if ( $mycred->exclude_user( $user_id ) ) continue;
+
+						$classes = 'nav-tab';
+						if ( isset( $_GET['ctype'] ) && $_GET['ctype'] == $type ) $classes .= ' nav-tab-active';
+
+						$tabs[] = array(
+							'label'   => $mycred->plural(),
+							'url'     => add_query_arg( array( 'page' => 'mycred-edit-balance', 'user_id' => $user_id, 'ctype' => $type ), admin_url( 'users.php' ) ),
+							'classes' => $classes
+						);
+					}
+
+					$user = get_userdata( $user_id );
+					$tabs = apply_filters( 'mycred_edit_profile_tabs_bp', $tabs, $user );
+
+					$output = '';
+					foreach ( $tabs as $tab )
+						$output .= '<a class="' . $tab['classes'] . '" href="' . $tab['url'] . '">' . esc_attr( $tab['label'] ) . '</a>';
+
+					ob_start();
+
+?>
+<script type="text/javascript">
+jQuery(document).ready(function($) {
+
+	$( 'h2#profile-nav' ).append( '<?php echo $output; ?>' );
+
+});
+</script>
+<?php
+
+					$content = ob_get_contents();
+					ob_end_clean();
+
+					echo apply_filters( 'mycred_admin_bp_nav', $content );
+
+				}
+
+			}
 
 		}
 	}

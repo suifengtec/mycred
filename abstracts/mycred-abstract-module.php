@@ -3,9 +3,9 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
 
 /**
  * myCRED_Module class
- * @see http://mycred.me/classes/mycred_module/
+ * @see http://codex.mycred.me/classes/mycred_module/
  * @since 0.1
- * @version 1.3
+ * @version 1.3.2
  */
 if ( ! class_exists( 'myCRED_Module' ) ) {
 	abstract class myCRED_Module {
@@ -41,6 +41,10 @@ if ( ! class_exists( 'myCRED_Module' ) ) {
 
 		public $mycred_type;
 
+		public $point_types;
+
+		public $current_user_id;
+
 		public $pages = array();
 
 		/**
@@ -61,6 +65,8 @@ if ( ! class_exists( 'myCRED_Module' ) ) {
 			
 			if ( $this->mycred_type != 'mycred_default' )
 				$this->is_main_type = false;
+
+			$this->point_types = mycred_get_types();
 
 			// Default arguments
 			$defaults = array(
@@ -104,6 +110,7 @@ if ( ! class_exists( 'myCRED_Module' ) ) {
 
 			$this->default_prefs = $args['defaults'];
 			$this->set_settings();
+			$this->current_user_id = get_current_user_id();
 
 			$args = NULL;
 		}
@@ -191,7 +198,7 @@ if ( ! class_exists( 'myCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		function load() {
-			if ( ! empty( $this->screen_id ) && ! empty( $this->labels ) ) {
+			if ( ! empty( $this->screen_id ) && ! empty( $this->labels['menu'] ) ) {
 				add_action( 'mycred_add_menu',         array( $this, 'add_menu' ), $this->menu_pos );
 				add_action( 'admin_init',              array( $this, 'set_entries_per_page' ) );
 			}
@@ -273,7 +280,7 @@ if ( ! class_exists( 'myCRED_Module' ) ) {
 			}
 
 			// Function
-			elseif( ! is_array( $callback ) ) {
+			elseif ( ! is_array( $callback ) ) {
 				if ( function_exists( $callback ) ) {
 					if ( $return !== NULL )
 						return call_user_func( $callback, $return, $this );
@@ -489,7 +496,7 @@ h4.ui-accordion-header:before { content: "<?php _e( 'click to open', 'mycred' );
 		 * @since 0.1
 		 * @version 1.0
 		 */
-		function after_general_settings() { }
+		function after_general_settings( $mycred ) { }
 
 		/**
 		 * Sanitize Core Settings
@@ -578,6 +585,29 @@ h4.ui-accordion-header:before { content: "<?php _e( 'click to open', 'mycred' );
 			
 			return add_query_arg( $variables, admin_url( 'admin.php' ) );
 		}
+
+		/**
+		 * Request to Entry
+		 * @since 1.6
+		 * @version 1.0
+		 */
+		public function request_to_entry( $request ) {
+
+			$entry = new stdClass();
+
+			$entry->id      = -1;
+			$entry->ref     = $request['ref'];
+			$entry->ref_id  = $request['ref_id'];
+			$entry->user_id = $request['user_id'];
+			$entry->time    = current_time( 'timestamp' );
+			$entry->entry   = $request['entry'];
+			$entry->data    = $request['data'];
+			$entry->ctype   = $request['type'];
+
+			return $entry;
+
+		}
+
 	}
 }
 ?>

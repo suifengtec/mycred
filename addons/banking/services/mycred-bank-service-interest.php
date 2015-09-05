@@ -2,17 +2,17 @@
 /**
  * myCRED Bank Service - Interest
  * @since 1.2
- * @version 1.1
+ * @version 1.2
  */
 if ( ! defined( 'myCRED_VERSION' ) ) exit;
 
-if ( ! class_exists( 'myCRED_Banking_Service_Interest' ) ) {
+if ( ! class_exists( 'myCRED_Banking_Service_Interest' ) ) :
 	class myCRED_Banking_Service_Interest extends myCRED_Service {
 
 		/**
 		 * Construct
 		 */
-		function __construct( $service_prefs ) {
+		function __construct( $service_prefs, $type = 'mycred_default' ) {
 			parent::__construct( array(
 				'id'       => 'interest',
 				'defaults' => array(
@@ -21,324 +21,665 @@ if ( ! class_exists( 'myCRED_Banking_Service_Interest' ) ) {
 						'period'       => 1,
 						'pay_out'      => 'monthly'
 					),
-					'last_payout'   => '',
 					'log'           => __( '%plural% interest rate payment', 'mycred' ),
 					'min_balance'   => 1,
-					'run_time'   => 60
+					'exclude_ids'   => '',
+					'exclude_roles' => array()
 				)
-			), $service_prefs );
+			), $service_prefs, $type );
+
+			add_action( 'mycred_bank_interest_comp' . $this->mycred_type, array( $this, 'do_compounding' ) );
+			add_action( 'mycred_bank_interest_pay' . $this->mycred_type, array( $this, 'do_interest_payout' ) );
+		}
+
+		/**
+		 * Activate Service
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		public function activate() {
+
+			$this->save_last_run( 'compound' );
+			$this->save_last_run( 'payout' );
+
+		}
+
+		/**
+		 * Deactivate Service
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		public function deactivate() {
+
+			$option_id = 'mycred_bank_interest_comp' . $this->mycred_type;
+			$timestamp = wp_next_scheduled( $option_id );
+			if ( $timestamp !== false )
+				wp_clear_scheduled_hook( $timestamp, $option_id );
+
+			$option_id = 'mycred_bank_interest_pay' . $this->mycred_type;
+			$timestamp = wp_next_scheduled( $option_id );
+			if ( $timestamp !== false )
+				wp_clear_scheduled_hook( $timestamp, $option_id );
+
 		}
 
 		/**
 		 * Run
 		 * @since 1.2
-		 * @version 1.0
+		 * @version 1.1
 		 */
 		public function run() {
-			add_action( 'wp_loaded',                        array( $this, 'process' ) );
-			add_action( 'mycred_banking_interest_compound', array( $this, 'do_compound' ) );
-			add_action( 'mycred_banking_do_compound_batch', array( $this, 'do_compound_batch' ) );
-			
-			add_action( 'mycred_banking_interest_payout',   array( $this, 'do_payouts' ) );
-			add_action( 'mycred_banking_interest_do_batch', array( $this, 'do_interest_batch' ) );
+
+			// Time to compound interest?
+			$compound_rate = apply_filters( 'mycred_compound_interest', 'daily', $this );
+			$time_to_compound = $this->time_to_run( $compound_rate, $this->get_last_run( 'compound' ) );
+			if ( $time_to_compound ) {
+
+				// Get Work
+				$option_id = 'mycred_bank_interest_comp' . $this->mycred_type;
+				$work_marker = 'MYCRED_BANK_COMPOUND_' . $this->mycred_type;
+
+				$eligeble_users = $this->get_eligeble_users();
+
+				// Work to do?
+				if ( ! empty( $eligeble_users ) ) {
+
+					// Get current workload
+					$current_work = mycred_get_option( $option_id, false );
+
+					// Currently working?
+					if ( ! defined( $work_marker ) ) {
+
+						// Cron is scheduled?
+						if ( wp_next_scheduled( $option_id ) === false ) {
+							if ( $current_work === false )
+								mycred_update_option( $option_id, $eligeble_users );
+
+							wp_schedule_single_event( time(), $option_id );
+						}
+
+						// Work left to do?
+						elseif ( $current_work === false ) {
+
+							// Mark completed
+							$this->update_run_count( 'compound' );
+							$this->save_last_run( 'compound' );
+
+						}
+
+					}
+
+				}
+				else {
+
+					// Mark completed
+					$this->update_run_count( 'compound' );
+					$this->save_last_run( 'compound' );
+
+				}
+
+			}
+
+			// Time to Payout?
+			$time_to_payout = $this->time_to_run( $this->prefs['rate']['pay_out'], $this->get_last_run( 'payout' ) );
+			if ( $time_to_payout ) {
+
+				// Get Work
+				$option_id = 'mycred_bank_interest_pay' . $this->mycred_type;
+				$work_marker = 'MYCRED_BANK_COMPPAY_' . $this->mycred_type;
+
+				$eligeble_users = $this->get_eligeble_users_payout();
+
+				// Work to do?
+				if ( ! empty( $eligeble_users ) ) {
+
+					// Get current workload
+					$current_work = mycred_get_option( $option_id, false );
+
+					// Currently working?
+					if ( ! defined( $work_marker ) ) {
+
+						// Cron is scheduled?
+						if ( wp_next_scheduled( $option_id ) === false ) {
+							if ( $current_work === false )
+								mycred_update_option( $option_id, $eligeble_users );
+
+							wp_schedule_single_event( time(), $option_id );
+						}
+
+						// Work left to do?
+						elseif ( $current_work === false ) {
+
+							// Mark completed
+							$this->update_run_count( 'payout' );
+							$this->save_last_run( 'payout' );
+
+						}
+
+					}
+
+				}
+				else {
+
+					// Mark completed
+					$this->update_run_count( 'payout' );
+					$this->save_last_run( 'payout' );
+
+				}
+
+			}
+
 		}
 
 		/**
-		 * Deactivation
-		 * @since 1.2
+		 * Do Interest Compounding
+		 * @since 1.5.2
 		 * @version 1.0
 		 */
-		public function deactivate() {
-			// Unschedule compounding
-			$timestamp = wp_next_scheduled( 'mycred_banking_interest_compound' );
-			if ( $timestamp !== false )
-				wp_clear_scheduled_hook( $timestamp, 'mycred_banking_interest_compound' );
+		public function do_compounding() {
 
-			// Unschedule payouts
-			$timestamp = wp_next_scheduled( 'mycred_banking_interest_payout' );
-			if ( $timestamp !== false )
-				wp_clear_scheduled_hook( $timestamp, 'mycred_banking_interest_payout' );
+			$work_marker = 'MYCRED_BANK_COMPOUND_' . $this->mycred_type;
+			define( $work_marker, time() );
+
+			$option_id = 'mycred_bank_interest_comp' . $this->mycred_type;
+			$current_work = mycred_get_option( $option_id, false );
+			if ( $current_work === false ) {
+				$this->update_run_count( 'compound' );
+				$this->save_last_run( 'compound' );
+				return;
+			}
+
+			$work = $current_work;
+			foreach ( $current_work as $row => $user_id ) {
+
+				// Get users balance
+				$balance = mycred_get_user_meta( $user_id, $this->mycred_type );
+
+				// Get past interest to add up to
+				$past_interest = mycred_get_user_meta( $user_id, $this->mycred_type . '_comp' );
+				if ( $past_interest == '' ) $past_interest = 0;
+
+				// Get interest rate
+				$user_override = mycred_get_user_meta( $user_id, 'mycred_banking_rate_' . $this->mycred_type );
+				if ( $user_override != '' )
+					$rate = $user_override / 100;
+				else
+					$rate = $this->prefs['rate']['amount'] / 100;
+
+				// Period
+				$period = $this->prefs['rate']['period'] / $this->get_days_in_year();
+
+				// Compound
+				$interest = ( $balance + $past_interest ) * $rate * $period;
+				$interest = round( $interest, 2 );
+
+				// Save interest
+				mycred_update_user_meta( $user_id, $this->mycred_type . '_comp', '', $interest );
+
+				// Remove from workload
+				unset( $work[ $row ] );
+
+				if ( ! empty( $work ) )
+					mycred_update_option( $option_id, $work );
+				else {
+					mycred_delete_option( $option_id );
+					$this->update_run_count( 'compound' );
+					$this->save_last_run( 'compound' );
+				}
+
+			}
+
 		}
-		
+
 		/**
-		 * Process
-		 * Determines if we should run a payout or not and schedule the daily
-		 * compounding.
-		 * @since 1.2
+		 * Do Interest Payout
+		 * @since 1.5.2
 		 * @version 1.0
 		 */
-		public function process() {
-			// Unschedule if amount is set to zero
-			if ( $this->prefs['rate']['amount'] == $this->core->zero() ) {
-				$timestamp = wp_next_scheduled( 'mycred_banking_interest_compound' );
-				if ( $timestamp !== false )
-					wp_clear_scheduled_hook( $timestamp, 'mycred_banking_interest_compound' );
+		public function do_interest_payout() {
+
+			$work_marker = 'MYCRED_BANK_COMPPAY_' . $this->mycred_type;
+			define( $work_marker, time() );
+
+			$option_id = 'mycred_bank_interest_pay' . $this->mycred_type;
+			$current_work = mycred_get_option( $option_id, false );
+			if ( $current_work === false ) {
+				$this->update_run_count( 'payout' );
+				$this->save_last_run( 'payout' );
+				return;
 			}
 
-			// Schedule if none exist
-			if ( ! wp_next_scheduled( 'mycred_banking_interest_compound' ) ) {
-				wp_schedule_event( time(), 'daily', 'mycred_banking_interest_compound' );
+			$now = date_i18n( 'U' );
+			$work = $current_work;
+			foreach ( $current_work as $row => $user_id ) {
+
+				// Get past interest to add up to
+				$accumulated_interest = mycred_get_user_meta( $user_id, $this->mycred_type . '_comp', '', true );
+				if ( $accumulated_interest != '' ) {
+
+					// Add a unique Payout ID
+					$data = array( 'payout_id' => $now . $user_id );
+
+					// Prevent duplicates
+					if ( ! $this->core->has_entry( 'interest', 0, $user_id, $data, $this->mycred_type ) )
+						$this->core->add_creds(
+							'interest',
+							$user_id,
+							$accumulated_interest,
+							$this->prefs['log'],
+							0,
+							$data,
+							$this->mycred_type
+						);
+
+				}
+
+				// Remove from workload
+				unset( $work[ $row ] );
+
+				if ( ! empty( $work ) )
+					mycred_update_option( $option_id, $work );
+				else {
+					mycred_delete_option( $option_id );
+					$this->update_run_count( 'payout' );
+					$this->save_last_run( 'payout' );
+				}
+
 			}
 
-			$unow = date_i18n( 'U' );
-			// Cant pay interest on zero
-			if ( $this->prefs['rate']['amount'] == $this->core->zero() ) return;
-			
-			// Should we payout
-			$payout_now = $this->get_now( $this->prefs['rate']['pay_out'] );
-			if ( empty( $this->prefs['last_payout'] ) || $this->prefs['last_payout'] === NULL ) {
-				$last_payout = $this->get_last_run( $unow, $this->prefs['rate']['pay_out'] );
-				$this->save( 'last_payout', $unow );
-			}
-			else {
-				$last_payout = $this->get_last_run( $this->prefs['last_payout'], $this->prefs['rate']['pay_out'] );
-			}
-			if ( $payout_now === false || $last_payout === false ) return;
-
-			// Time to run?
-			if ( $this->time_to_run( $this->prefs['rate']['pay_out'], $last_payout ) ) {
-				// Save
-				$this->save( 'last_payout', $unow );
-				
-				// Schedule Payouts
-				if ( wp_next_scheduled( 'mycred_banking_interest_payout' ) === false )
-					wp_schedule_single_event( time(), 'mycred_banking_interest_payout' );
-			}
 		}
 
 		/**
-		 * Do Compound
-		 * Either runs compounding on every single user in one go, or split the users
-		 * up into groups of 2000 IDs and do them in batches.
-		 * @since 1.2
+		 * Get Eligeble User Payouts
+		 * @since 1.5.2
 		 * @version 1.0
 		 */
-		public function do_compound() {
-			if ( $this->prefs['rate']['amount'] == $this->core->zero() ) return;
-			// Get users
-			$users = $this->get_users();
-			$total = count( $users );
-			$threshold = (int) apply_filters( 'mycred_do_banking_limit', 2000 );
-			
-			if ( (int) $total > $threshold ) {
-				$batches = array_chunk( $users, $threshold );
-				$time = time();
-				
-				$set = 0;
-				foreach ( $batches as $batch_id => $batch ) {
-					$set = $set+1;
-					$run_time = ( $time + ( 60*$set ) );
-					if ( wp_next_scheduled( $run_time, 'mycred_banking_do_compound_batch', array( $batch ) ) === false )
-						wp_schedule_single_event( $run_time, 'mycred_banking_do_compound_batch', array( $batch ) );
-				}
-			}
-			else {
-				$this->do_compound_batch( $users );
-			}
+		public function get_eligeble_users_payout() {
+
+			global $wpdb;
+
+			$key = $this->mycred_type . '_comp';
+			if ( is_multisite() && $GLOBALS['blog_id'] > 1 && ! $this->core->use_central_logging )
+				$key .= '_' . $GLOBALS['blog_id'];
+
+			$users = $wpdb->get_col( $wpdb->prepare( "
+				SELECT DISTINCT user_id 
+				FROM {$wpdb->usermeta} 
+				WHERE meta_key = %s;", $key ) );
+
+			if ( $users === NULL )
+				$users = array();
+
+			return $users;
+
 		}
-		
+
 		/**
-		 * Do Compound Batch
-		 * Compounds interest for each user ID given in batch.
-		 * @since 1.2
-		 * @version 1.2.1
+		 * Get Total Pending for Payout
+		 * Returns the total amount of compounded interest that is currently
+		 * pending to be paid out.
+		 * @since 1.5.2
+		 * @version 1.0
 		 */
-		public function do_compound_batch( $batch ) {
-			if ( !empty( $batch ) && is_array( $batch ) ) {
+		public function get_total_pending_payout() {
 
-				set_time_limit( $this->prefs['run_time'] );
+			global $wpdb;
+			$key = $this->mycred_type . '_comp';
 
-				foreach ( $batch as $user_id ) {
-					$user_id = intval( $user_id );
-										
-					// Current balance
-					$balance = $this->core->get_users_cred( $user_id );
-					if ( $balance == 0 ) continue;
-					
-					// Get past interest
-					$past_interest = mycred_get_user_meta( $user_id, $this->core->get_cred_id() . '_comp', '', true );
-					if ( empty( $past_interest ) ) $past_interest = 0;
-					
-					// Min Balance Limit
-					if ( $balance < $this->core->number( $this->prefs['min_balance'] ) ) continue;
-					
-					// Convert rate
-					$rate = $this->prefs['rate']['amount']/100;
-					
-					// Period
-					$period = $this->prefs['rate']['period']/$this->get_days_in_year();
-					
-					// Compound
-					$interest = ( $balance + $past_interest ) * $rate * $period;
-					$interest = round( $interest, 2 );
-					
-					// Save interest
-					mycred_update_user_meta( $user_id, $this->core->get_cred_id() . '_comp', '', $interest );
-				}
-			}
+			$total = $wpdb->get_var( "
+				SELECT SUM( meta_value ) 
+				FROM {$wpdb->usermeta} 
+				WHERE meta_key = '{$key}';" );
+
+			if ( $total === NULL )
+				$total = $this->core->zero();
+
+			return $total;
+
 		}
 
 		/**
-		 * Payout
-		 * Will either payout to all users in one go or if there is more then
-		 * 2000 members, do them in batches of 2000 at a time.
-		 * @since 1.2
-		 * @version 1.1
+		 * Get Total Payouts
+		 * @since 1.5.2
+		 * @version 1.0
 		 */
-		public function do_payouts() {
-			// Make sure to clear any stray schedules to prevent duplicates
-			wp_clear_scheduled_hook( 'mycred_banking_interest_payout' );
+		public function get_total_interest_payouts() {
 
-			// Query
-			$users = $this->get_users();
-			$total = count( $users );
-			$threshold = (int) apply_filters( 'mycred_do_banking_limit', 2000 );
-			
-			if ( (int) $total > $threshold ) {
-				$batches = array_chunk( $users, $threshold );
-				$time = time();
-				
-				$set = 0;
-				foreach ( $batches as $batch_id => $batch ) {
-					$set = $set+1;
-					$run_time = ( $time + ( 60*$set ) );
-					if ( wp_next_scheduled( $run_time, 'mycred_banking_interest_do_batch', array( $batch ) ) === false )
-						wp_schedule_single_event( $run_time, 'mycred_banking_interest_do_batch', array( $batch ) );
-				}
-			}
-			else {
-				$this->do_interest_batch( $users );
-			}
-		}
-		
-		/**
-		 * Do Payout
-		 * Runs though all user compounded interest and pays.
-		 * @since 1.2
-		 * @version 1.2.1
-		 */
-		public function do_interest_batch( $batch ) {
-			if ( !empty( $batch ) && is_array( $batch ) ) {
+			global $wpdb;
+			$log = $this->core->log_table;
 
-				set_time_limit( $this->prefs['run_time'] );
+			$total = $wpdb->get_var( "
+				SELECT SUM( creds ) 
+				FROM {$log} 
+				WHERE ref = 'interest' 
+				AND ctype = '{$this->mycred_type}';" );
 
-				foreach ( $batch as $user_id ) {
-					$user_id = intval( $user_id );
-										
-					// Get past interest
-					$past_interest = mycred_get_user_meta( $user_id, $this->core->get_cred_id() . '_comp', '', true );
-					if ( empty( $past_interest ) || $past_interest == 0 ) continue;
-					
-					// Pay / Charge
-					$this->core->add_creds(
-						'payout',
-						$user_id,
-						$past_interest,
-						$this->prefs['log']
-					);
-					
-					// Reset past interest
-					mycred_update_user_meta( $user_id, $this->core->get_cred_id() . '_comp', '', 0 );
-				}
-			}
-		}
-		
-		/**
-		 * Save
-		 * Saves the given preference id for rates.
-		 * from the active list.
-		 * @since 1.2
-		 * @version 1.1
-		 */
-		public function save( $id, $now ) {
-			if ( !isset( $this->prefs[ $id ] ) ) return;
-			$this->prefs[ $id ] = $now;
+			if ( $total === NULL )
+				$total = $this->core->zero();
 
-			// Get Bank settings
-			$bank = mycred_get_option( 'mycred_pref_bank' );
-			
-			// Update settings
-			$bank['service_prefs'][$this->id] = $this->prefs;
+			return $total;
 
-			// Save new settings
-			mycred_update_option( 'mycred_pref_bank', $bank );
 		}
 
 		/**
-		 * Preference for Savings
+		 * Preference for interest rates
 		 * @since 1.2
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		public function preferences() {
-			$prefs = $this->prefs; ?>
 
-					<label class="subheader"><?php _e( 'Interest Rate', 'mycred' ); ?></label>
-					<ol class="inline">
-						<li>
-							<label>&nbsp;</label>
-							<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'rate' => 'amount' ) ); ?>" id="<?php echo $this->field_id( array( 'rate' => 'amount' ) ); ?>" value="<?php echo $this->core->format_number( $prefs['rate']['amount'] ); ?>" size="4" /> %</div>
-						</li>
-						<li>
-							<label for="<?php echo $this->field_id( array( 'rate' => 'pay_out' ) ); ?>"><?php _e( 'Payed / Charged', 'mycred' ); ?></label><br />
-							<?php $this->timeframe_dropdown( array( 'rate' => 'pay_out' ), false, false ); ?>
+			$prefs = $this->prefs;
+			$editable_roles = array_reverse( get_editable_roles() );
 
-						</li>
-						<li class="block">
-							<input type="hidden" name="<?php echo $this->field_name( 'last_payout' ); ?>" value="<?php echo $prefs['last_payout']; ?>" />
-							<span class="description"><?php _e( 'The interest rate can be either positive or negative and is compounded daily.', 'mycred' ); ?></span>
-						</li>
-					</ol>
-					<label class="subheader"><?php _e( 'Minimum Balance', 'mycred' ); ?></label>
-					<ol>
-						<li>
-							<div class="h2"><?php if ( $this->core->before != '' ) echo $this->core->before . ' '; ?><input type="text" name="<?php echo $this->field_name( 'min_balance' ); ?>" id="<?php echo $this->field_id( 'min_balance' ); ?>" value="<?php echo $this->core->format_number( $prefs['min_balance'] ); ?>" size="8" /><?php if ( $this->core->after != '' ) echo ' ' . $this->core->after; ?></div>
-							<span class="description"><?php _e( 'The minimum requires balance for interest to apply.', 'mycred' ); ?></span>
-						</li>
-					</ol>
-					<label class="subheader"><?php _e( 'Log Template', 'mycred' ); ?></label>
-					<ol>
-						<li>
-							<div class="h2"><input type="text" name="<?php echo $this->field_name( 'log' ); ?>" id="<?php echo $this->field_id( 'log' ); ?>" value="<?php echo $prefs['log']; ?>" style="width: 65%;" /></div>
-							<span class="description"><?php echo $this->core->available_template_tags( array( 'general' ), '%timeframe%, %rate%, %base%' ); ?></span>
-						</li>
-					</ol>
-					<label class="subheader" for="<?php echo $this->field_id( 'run_time' ); ?>"><?php _e( 'Run Time', 'mycred' ); ?></label>
-					<ol>
-						<li>
-							<div class="h2"><input type="text" name="<?php echo $this->field_name( 'run_time' ); ?>" id="<?php echo $this->field_id( 'run_time' ); ?>" value="<?php echo $prefs['run_time']; ?>" size="4" /></div>
-							<span class="description"><?php _e( 'For large websites, if you are running into time out issues during payouts, you can set the number of seconds a process can run. Use zero for unlimited, but be careful especially if you are on a shared server.', 'mycred' ); ?></span>
-						</li>
-					</ol>
-					<?php do_action( 'mycred_banking_compound_interest', $this->prefs ); ?>
+			// Inform user when compounding is running
+			$comp_work_marker = 'MYCRED_BANK_COMPOUND_' . $this->mycred_type;
+			if ( defined( $comp_work_marker ) ) :
+				$current_work = mycred_get_option( 'mycred_bank_interest_comp' . $this->mycred_type, false ); ?>
+
+<p><strong><?php _e( 'Compounding Interest', 'mycred' ); ?></strong> <?php print_r( __( '%d Users are left to process.', 'mycred' ), count( $current_work ) ); ?></p>
+<?php
+
+			endif;
+
+			$pay_count = $this->get_run_count( 'payout' );
+			$comp_count = $this->get_run_count( 'compound' );
+
+?>
+<label class="subheader"><?php _e( 'Payout History', 'mycred' ); ?></label>
+<ol class="inline">
+	<?php if ( $pay_count > 0 ) : ?>
+	<li style="min-width: 100px;">
+		<label><?php _e( 'Run Count', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $pay_count; ?></div>
+	</li>
+	<?php endif; ?>
+	<li style="min-width: 200px;">
+		<label><?php if ( $pay_count > 0 ) _e( 'Last Payout', 'mycred' ); else _e( 'Activated', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $this->display_last_run( 'payout' ); ?></div>
+	</li>
+	<li>
+		<label><?php _e( 'Total Payed Interest', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $this->core->format_creds( $this->get_total_interest_payouts() ); ?></div>
+	</li>
+</ol>
+<label class="subheader"><?php _e( 'Compound History', 'mycred' ); ?></label>
+<ol class="inline">
+	<?php if ( $comp_count > 0 ) : ?>
+	<li style="min-width: 100px;">
+		<label><?php _e( 'Run Count', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $comp_count; ?></div>
+	</li>
+	<?php endif; ?>
+	<li style="min-width: 200px;">
+		<label><?php if ( $comp_count > 0 ) _e( 'Last Interest Compound', 'mycred' ); else _e( 'Activated', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $this->display_last_run( 'compound' ); ?></div>
+	</li>
+	<li>
+		<label><?php _e( 'Total Compounded Interest', 'mycred' ); ?></label>
+		<div class="h2"><?php echo $this->core->format_creds( $this->get_total_pending_payout() ); ?></div>
+	</li>
+</ol>
+<label class="subheader"><?php _e( 'Interest Rate', 'mycred' ); ?></label>
+<ol class="inline">
+	<li>
+		<label><?php _e( 'Default Rate', 'mycred' ); ?></label>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'rate' => 'amount' ) ); ?>" id="<?php echo $this->field_id( array( 'rate' => 'amount' ) ); ?>" value="<?php echo $this->core->format_number( $prefs['rate']['amount'] ); ?>" size="8" />%</div>
+		<span class="description"><?php _e( 'Can not be zero.', 'mycred' ); ?></span>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( 'rate' ); ?>"><?php _e( 'Payout', 'mycred' ); ?></label><br />
+		<?php $this->timeframe_dropdown( array( 'rate' => 'pay_out' ), false, false ); ?>
+
+	</li>
+</ol>
+<label class="subheader"><?php _e( 'Log Template', 'mycred' ); ?></label>
+<ol>
+	<li>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( 'log' ); ?>" id="<?php echo $this->field_id( 'log' ); ?>" value="<?php echo $prefs['log']; ?>" style="width: 65%;" /></div>
+		<span class="description"><?php echo $this->core->available_template_tags( array( 'general' ), '%timeframe%, %rate%, %base%' ); ?></span>
+	</li>
+</ol>
+<label class="subheader"><?php _e( 'Minimum Balance', 'mycred' ); ?></label>
+<ol>
+	<li>
+		<div class="h2"><?php if ( $this->core->before != '' ) echo $this->core->before . ' '; ?><input type="text" name="<?php echo $this->field_name( 'min_balance' ); ?>" id="<?php echo $this->field_id( 'min_balance' ); ?>" value="<?php echo $this->core->format_number( $prefs['min_balance'] ); ?>" size="8" placeholder="<?php echo $this->core->zero(); ?>" /><?php if ( $this->core->after != '' ) echo ' ' . $this->core->after; ?></div>
+		<span class="description"><?php _e( 'Optional minimum balance requirement.', 'mycred' ); ?></span>
+	</li>
+</ol>
+<label class="subheader"><?php _e( 'Exclude', 'mycred' ); ?></label>
+<ol>
+	<li>
+		<label><?php _e( 'Comma separated list of user IDs', 'mycred' ); ?></label>
+		<div class="h2"><input type="text" name="<?php echo $this->field_name( 'exclude_ids' ); ?>" id="<?php echo $this->field_id( 'exclude_ids' ); ?>" value="<?php echo $prefs['exclude_ids']; ?>" class="long" /></div>
+	</li>
+	<li>
+		<label><?php _e( 'Roles', 'mycred' ); ?></label><br />
+
+<?php
+
+			foreach ( $editable_roles as $role => $details ) {
+				$name = translate_user_role( $details['name'] );
+
+				echo '<label for="' . $this->field_id( 'exclude-roles-' . $role ) . '"><input type="checkbox" name="' . $this->field_name( 'exclude_roles][' ) . '" id="' . $this->field_id( 'exclude-roles-' . $role ) . '" value="' . esc_attr( $role ) . '"';
+				if ( in_array( $role, (array) $prefs['exclude_roles'] ) ) echo ' checked="checked"';
+				echo ' />' . $name . '</label><br />';
+			}
+
+?>
+
+	</li>
+</ol>
+<?php do_action( 'mycred_banking_compound_interest', $this ); ?>
+
 <?php
 		}
 
 		/**
 		 * Sanitise Preferences
 		 * @since 1.2
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		function sanitise_preferences( $post ) {
+
 			$new_settings = $post;
-
 			$new_settings['rate']['amount'] = str_replace( ',', '.', trim( $post['rate']['amount'] ) );
-
 			$new_settings['rate']['period'] = $this->get_days_in_year();
-
 			$new_settings['rate']['pay_out'] = sanitize_text_field( $post['rate']['pay_out'] );
 
-			$new_settings['min_balance'] = str_replace( ',', '.', trim( $post['min_balance'] ) );
-			
-			$new_settings['last_payout'] = trim( $post['last_payout'] );
-
 			$new_settings['log'] = trim( $post['log'] );
+			$new_settings['min_balance'] = str_replace( ',', '.', trim( $post['min_balance'] ) );
 
-			$post['run_time'] = abs( $post['run_time'] );
-			$new_settings['run_time'] = sanitize_text_field( $post['run_time'] );
+			$new_settings['exclude_ids'] = sanitize_text_field( $post['exclude_ids'] );
 
-			return apply_filters( 'mycred_banking_save_interest', $new_settings, $this->prefs );
+			if ( ! isset( $post['exclude_roles'] ) )
+				$post['exclude_roles'] = array();
+
+			$new_settings['exclude_roles'] = $post['exclude_roles'];
+			return apply_filters( 'mycred_banking_save_interest', $new_settings, $this );
+
 		}
-	}
-}
 
+		/**
+		 * User Override
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		function user_override( $user = NULL, $type = 'mycred_default' ) {
+
+			$users_rate = mycred_get_user_meta( $user->ID, 'mycred_banking_rate_' . $type );
+			$excluded = $this->exclude_user( $user->ID ); ?>
+
+<h3><?php _e( 'Compound Interest', 'mycred' ); ?></h3>
+
+<?php
+
+			if ( $excluded == 'list' ) :
+
+?>
+
+<table class="form-table">
+	<tr>
+		<td colspan="2"><?php _e( 'This user is excluded from receiving interest on this balance.', 'mycred' ); ?></td>
+	</tr>
+	<tr>
+		<td colspan="2"><?php submit_button( __( 'Remove from Excluded List', 'mycred' ), 'primary medium', 'mycred_include_users_interest_rate', false ); ?></td>
+	</tr>
+</table>
+
+<?php
+
+			elseif ( $excluded == 'role' ) :
+
+?>
+
+<table class="form-table">
+	<tr>
+		<td colspan="2"><?php _e( 'This user role is excluded from receiving interest on this balance.', 'mycred' ); ?></td>
+	</tr>
+</table>
+
+<?php
+
+			else :
+
+?>
+
+<table class="form-table">
+	<tr>
+		<th scope="row"><?php _e( 'Interest Rate', 'mycred' ); ?></th>
+		<td>
+			<input type="text" name="mycred_adjust_users_interest_rate" id="mycred-adjust-users-interest-rate" value="<?php echo $users_rate; ?>" placeholder="<?php echo $this->prefs['rate']['amount']; ?>" size="8" /> %<br />
+			<span class="description"><?php _e( 'Leave empty to use the default value.', 'mycred' ); ?></span>
+		</td>
+	</tr>
+	<tr>
+		<th scope="row"></th>
+		<td>
+			<?php submit_button( __( 'Save Interest Rate', 'mycred' ), 'primary medium', 'mycred_adjust_users_interest_rate_run', false ); ?> 
+			<?php submit_button( __( 'Exclude from receiving interest', 'mycred' ), 'primary medium', 'mycred_exclude_users_interest_rate', false ); ?>
+		</td>
+	</tr>
+</table>
+<?php
+			endif;
+
+		}
+
+		/**
+		 * Save User Override
+		 * @since 1.5.2
+		 * @version 1.0.1
+		 */
+		function save_user_override() {
+
+			// Save interest rate
+			if ( isset( $_POST['mycred_adjust_users_interest_rate_run'] ) && isset( $_POST['mycred_adjust_users_interest_rate'] ) ) {
+
+				$ctype = sanitize_key( $_GET['ctype'] );
+				$user_id = absint( $_GET['user_id'] );
+
+				$rate = $_POST['mycred_adjust_users_interest_rate'];
+				if ( $rate != '' ) {
+					if ( isfloat( $rate ) )
+						$rate = (float) $rate;
+					else
+						$rate = (int) $rate;
+
+					mycred_update_user_meta( $user_id, 'mycred_banking_rate_' . $ctype, '', $rate );
+				}
+				else {
+					mycred_delete_user_meta( $user_id, 'mycred_banking_rate_' . $ctype );
+				}
+
+				wp_safe_redirect( add_query_arg( array( 'result' => 'banking_interest_rate' ) ) );
+				exit;
+
+			}
+
+			// Exclude
+			elseif ( isset( $_POST['mycred_exclude_users_interest_rate'] ) ) {
+
+				$ctype = sanitize_key( $_GET['ctype'] );
+				$user_id = absint( $_GET['user_id'] );
+
+				$excluded = explode( ',', $this->prefs['exclude_ids'] );
+				$clean_ids = array();
+				if ( ! empty( $excluded ) ) {
+					foreach ( $excluded as $id ) {
+						if ( $id == 0 ) continue;
+						$clean_ids[] = (int) trim( $id );
+					}
+				}
+
+				if ( ! in_array( $user_id, $clean_ids ) && $user_id != 0 )
+					$clean_ids[] = $user_id;
+
+				$option_id = 'mycred_pref_bank';
+				if ( ! $this->is_main_type )
+					$option_id .= '_' . $ctype;
+
+				$data = mycred_get_option( $option_id );
+				$data['service_prefs'][ $this->id ]['exclude_ids'] = implode( ',', $clean_ids );
+
+				mycred_update_option( $option_id, $data );
+
+				wp_safe_redirect( add_query_arg( array( 'result' => 'banking_interest_excluded' ) ) );
+				exit;
+
+			}
+
+			// Include
+			elseif ( isset( $_POST['mycred_include_users_interest_rate'] ) ) {
+
+				$ctype = sanitize_key( $_GET['ctype'] );
+				$user_id = absint( $_GET['user_id'] );
+
+				$excluded = explode( ',', $this->prefs['exclude_ids'] );
+				if ( ! empty( $excluded ) ) {
+					$clean_ids = array();
+					foreach ( $excluded as $id ) {
+						$clean_id = (int) trim( $id );
+						if ( $clean_id != $user_id && $user_id != 0 )
+							$clean_ids[] = $clean_id;
+					}
+
+					$option_id = 'mycred_pref_bank';
+					if ( ! $this->is_main_type )
+						$option_id .= '_' . $ctype;
+
+					$data = mycred_get_option( $option_id );
+					$data['service_prefs'][ $this->id ]['exclude_ids'] = implode( ',', $clean_ids );
+
+					mycred_update_option( $option_id, $data );
+
+					wp_safe_redirect( add_query_arg( array( 'result' => 'banking_interest_included' ) ) );
+					exit;
+				}
+
+			}
+
+		}
+
+		/**
+		 * User Override Notice
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		function user_override_notice() {
+
+			if ( isset( $_GET['page'] ) && $_GET['page'] == 'mycred-edit-balance' && isset( $_GET['result'] ) ) {
+
+				if ( $_GET['result'] == 'banking_interest_rate' )
+					echo '<div class="updated"><p>' . __( 'Compound interest rate saved.', 'mycred' ) . '</p></div>';
+				elseif ( $_GET['result'] == 'banking_interest_excluded' )
+					echo '<div class="updated"><p>' . __( 'User excluded from receiving interest.', 'mycred' ) . '</p></div>';
+				elseif ( $_GET['result'] == 'banking_interest_included' )
+					echo '<div class="updated"><p>' . __( 'User included in receiving interest.', 'mycred' ) . '</p></div>';
+
+			}
+
+		}
+
+	}
+endif;
 ?>

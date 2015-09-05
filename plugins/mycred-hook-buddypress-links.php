@@ -42,23 +42,28 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'defaults' => array(
 						'new_link'       => array(
 							'creds'          => 1,
-							'log'            => '%plural% for new Link'
+							'log'            => '%plural% for new Link',
+							'limit'          => '0/x'
 						),
 						'vote_link'      => array(
 							'creds'          => 1,
-							'log'            => '%plural% for voting on a link'
+							'log'            => '%plural% for voting on a link',
+							'limit'          => '0/x'
 						),
 						'vote_link_up'   => array(
 							'creds'          => 1,
-							'log'            => '%plural% for your link voted up'
+							'log'            => '%plural% for your link voted up',
+							'limit'          => '0/x'
 						),
 						'vote_link_down' => array(
 							'creds'          => 1,
-							'log'            => '%plural% for your link voted down'
+							'log'            => '%plural% for your link voted down',
+							'limit'          => '0/x'
 						),
 						'update_link'    => array(
 							'creds'          => 1,
-							'log'            => '%plural% for updating link'
+							'log'            => '%plural% for updating link',
+							'limit'          => '0/x'
 						),
 						'delete_link'    => array(
 							'creds'          => '-1',
@@ -89,7 +94,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * New Link
 			 * @since 0.1
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			public function create_link( $link_id ) {
 				global $bp;
@@ -98,24 +103,22 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				if ( $this->core->exclude_user( $bp->loggedin_user->id ) ) return;
 
 				// Make sure this is unique event
-				if ( $this->core->has_entry( 'new_link', $link_id, $bp->loggedin_user->id ) ) return;
-
-				// Execute
-				$this->core->add_creds(
-					'new_link',
-					$bp->loggedin_user->id,
-					$this->prefs['new_link']['creds'],
-					$this->prefs['new_link']['log'],
-					$link_id,
-					'bp_links',
-					$this->mycred_type
-				);
+				if ( ! $this->over_hook_limit( 'new_link', 'new_link', $bp->loggedin_user->id ) )
+					$this->core->add_creds(
+						'new_link',
+						$bp->loggedin_user->id,
+						$this->prefs['new_link']['creds'],
+						$this->prefs['new_link']['log'],
+						$link_id,
+						'bp_links',
+						$this->mycred_type
+					);
 			}
 
 			/**
 			 * Vote on Link
 			 * @since 0.1
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function vote_link( $link_id ) {
 				global $bp;
@@ -123,16 +126,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				// Check if user is excluded
 				if ( $this->core->exclude_user( $bp->loggedin_user->id ) ) return;
 
-				// Make sure this is unique event
-				if ( $this->core->has_entry( 'link_voting', $link_id, $bp->loggedin_user->id ) ) return;
-
 				// Get the vote
 				$vote = '';
 				if ( isset( $_REQUEST['up_or_down'] ) )
 					$vote = substr( $_REQUEST['up_or_down'], 0, 4 );
 
 				// First if we award points for voting, do so now
-				if ( $this->prefs['vote_link']['creds'] != 0 ) {
+				if ( $this->prefs['vote_link']['creds'] != 0 && ! $this->over_hook_limit( 'vote_link', 'link_voting', $bp->loggedin_user->id ) ) {
 					// Execute
 					$this->core->add_creds(
 						'link_voting',
@@ -150,14 +150,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					$author = $bp->links->current_link->user_id;
 
 				// Link author not found
-				else
-					return;
+				else return;
 
 				// By default we do not allow votes on our own links
 				if ( $author == $bp->loggedin_user->id && apply_filters( 'mycred_bp_link_self_vote', false ) === false ) return;
 
 				// Up Vote
-				if ( $vote == 'up' && $this->prefs['vote_link_up']['creds'] != 0 ) {
+				if ( $vote == 'up' && $this->prefs['vote_link_up']['creds'] != 0 && ! $this->over_hook_limit( 'vote_link_up', 'link_voting', $author )  ) {
 					// Execute
 					$this->core->add_creds(
 						'link_voting',
@@ -171,7 +170,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				}
 
 				// Down Vote
-				elseif ( $vote == 'down' && $this->prefs['vote_link_down']['creds'] != 0 ) {
+				elseif ( $vote == 'down' && $this->prefs['vote_link_down']['creds'] != 0 && ! $this->over_hook_limit( 'vote_link_down', 'link_voting', $author )  ) {
 					// Execute
 					$this->core->add_creds(
 						'link_voting',
@@ -188,25 +187,23 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Update Link
 			 * @since 0.1
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			public function update_link( $content, $user_id, $link_id, $activity_id ) {
 				// Check if user is excluded
 				if ( $this->core->exclude_user( $user_id ) ) return;
 
 				// Make sure this is unique event
-				if ( $this->core->has_entry( 'update_link', $activity_id, $user_id ) ) return;
-
-				// Execute
-				$this->core->add_creds(
-					'update_link',
-					$user_id,
-					$this->prefs['update_link']['creds'],
-					$this->prefs['update_link']['log'],
-					$activity_id,
-					'bp_links',
-					$this->mycred_type
-				);
+				if ( ! $this->over_hook_limit( 'update_link', 'update_link', $user_id ) )
+					$this->core->add_creds(
+						'update_link',
+						$user_id,
+						$this->prefs['update_link']['creds'],
+						$this->prefs['update_link']['log'],
+						$activity_id,
+						'bp_links',
+						$this->mycred_type
+					);
 			}
 
 			/**
@@ -238,7 +235,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Preferences
 			 * @since 0.1
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function preferences() {
 				$prefs = $this->prefs; ?>
@@ -248,6 +245,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_link', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_link', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_link']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_link', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_link', 'limit' ) ), $this->field_id( array( 'new_link', 'limit' ) ), $prefs['new_link']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -262,6 +263,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'vote_link', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'vote_link', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['vote_link']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'vote_link', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'vote_link', 'limit' ) ), $this->field_id( array( 'vote_link', 'limit' ) ), $prefs['vote_link']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'vote_link', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -275,16 +280,28 @@ if ( defined( 'myCRED_VERSION' ) ) {
 		<label><?php _e( 'Vote Up', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'vote_link_up', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'vote_link_up', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['vote_link_up']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'vote_link_up', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'vote_link_up', 'limit' ) ), $this->field_id( array( 'vote_link_up', 'limit' ) ), $prefs['vote_link_up']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'vote_link_up', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'vote_link_up', 'log' ) ); ?>" id="<?php echo $this->field_id( array( 'vote_link_up', 'log' ) ); ?>" value="<?php echo esc_attr( $prefs['vote_link_up']['log'] ); ?>" class="long" /></div>
 		<span class="description"><?php echo $this->available_template_tags( array( 'general' ) ); ?></span>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_gallery', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_gallery', 'limit' ) ), $this->field_id( array( 'new_gallery', 'limit' ) ), $prefs['new_gallery']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label><?php _e( 'Vote Down', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'vote_link_down', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'vote_link_down', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['vote_link_down']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'vote_link_down', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'vote_link_down', 'limit' ) ), $this->field_id( array( 'vote_link_down', 'limit' ) ), $prefs['vote_link_down']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -298,6 +315,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <ol>
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'update_link', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'update_link', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['update_link']['creds'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'update_link', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'update_link', 'limit' ) ), $this->field_id( array( 'update_link', 'limit' ) ), $prefs['update_link']['limit'] ); ?>
 	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
@@ -320,6 +341,52 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php
+			}
+
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				if ( isset( $data['new_link']['limit'] ) && isset( $data['new_link']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_link']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_link']['limit'] = $limit . '/' . $data['new_link']['limit_by'];
+					unset( $data['new_link']['limit_by'] );
+				}
+
+				if ( isset( $data['vote_link']['limit'] ) && isset( $data['vote_link']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['vote_link']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['vote_link']['limit'] = $limit . '/' . $data['vote_link']['limit_by'];
+					unset( $data['vote_link']['limit_by'] );
+				}
+
+				if ( isset( $data['vote_link_up']['limit'] ) && isset( $data['vote_link_up']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['vote_link_up']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['vote_link_up']['limit'] = $limit . '/' . $data['vote_link_up']['limit_by'];
+					unset( $data['vote_link_up']['limit_by'] );
+				}
+
+				if ( isset( $data['vote_link_down']['limit'] ) && isset( $data['vote_link_down']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['vote_link_down']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['vote_link_down']['limit'] = $limit . '/' . $data['vote_link_down']['limit_by'];
+					unset( $data['vote_link_down']['limit_by'] );
+				}
+
+				if ( isset( $data['update_link']['limit'] ) && isset( $data['update_link']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['update_link']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['update_link']['limit'] = $limit . '/' . $data['update_link']['limit_by'];
+					unset( $data['update_link']['limit_by'] );
+				}
+
+				return $data;
+
 			}
 		}
 	}

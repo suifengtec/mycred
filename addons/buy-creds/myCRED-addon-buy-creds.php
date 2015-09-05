@@ -2,7 +2,7 @@
 /**
  * Addon: buyCRED
  * Addon URI: http://mycred.me/add-ons/buycred/
- * Version: 1.4
+ * Version: 1.4.1
  * Description: The <strong>buy</strong>CRED Add-on allows your users to buy points using PayPal, Skrill (Moneybookers), Zombaio or NETbilling. <strong>buy</strong>CRED can also let your users buy points for other members.
  * Author: Gabriel S Merovingi
  * Author URI: http://www.merovingi.com
@@ -16,16 +16,16 @@ define( 'myCRED_PURCHASE_DIR',     myCRED_ADDONS_DIR . 'buy-creds/' );
 /**
  * Payment Gateway factory
  */
-require_once( myCRED_PURCHASE_DIR . 'abstracts/mycred-abstract-payment-gateway.php' );
+require_once myCRED_PURCHASE_DIR . 'abstracts/mycred-abstract-payment-gateway.php';
 
 /**
  * Payment Gateways, if you do not want to use one just comment it out.
  */
-require_once( myCRED_PURCHASE_DIR . 'gateways/paypal-standard.php' );
-require_once( myCRED_PURCHASE_DIR . 'gateways/bitpay.php' );
-require_once( myCRED_PURCHASE_DIR . 'gateways/netbilling.php' );
-require_once( myCRED_PURCHASE_DIR . 'gateways/skrill.php' );
-require_once( myCRED_PURCHASE_DIR . 'gateways/zombaio.php' );
+require_once myCRED_PURCHASE_DIR . 'gateways/paypal-standard.php';
+require_once myCRED_PURCHASE_DIR . 'gateways/bitpay.php';
+require_once myCRED_PURCHASE_DIR . 'gateways/netbilling.php';
+require_once myCRED_PURCHASE_DIR . 'gateways/skrill.php';
+require_once myCRED_PURCHASE_DIR . 'gateways/zombaio.php';
 
 do_action( 'mycred_buycred_load_gateways' );
 
@@ -34,7 +34,7 @@ do_action( 'mycred_buycred_load_gateways' );
  * @since 0.1
  * @version 1.4
  */
-if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
+if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) :
 	class myCRED_buyCRED_Module extends myCRED_Module {
 
 		public $purchase_log = '';
@@ -43,6 +43,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * Construct
 		 */
 		function __construct( $type = 'mycred_default' ) {
+
 			parent::__construct( 'myCRED_BuyCRED_Module', array(
 				'module_name' => 'gateways',
 				'option_id'   => 'mycred_pref_buycreds',
@@ -68,6 +69,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				$this->mycred_type = $this->core->buy_creds['type'];
 
 			add_filter( 'mycred_parse_log_entry',  array( $this, 'render_gift_tags' ), 10, 2 );
+
 		}
 
 		/**
@@ -75,6 +77,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		public function load() {
+
 			add_action( 'mycred_init',             array( $this, 'module_init' ) );
 			add_action( 'mycred_admin_init',       array( $this, 'module_admin_init' ) );
 
@@ -84,7 +87,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 			add_action( 'mycred_add_menu',         array( $this, 'add_to_menu' ), $this->menu_pos+1 );
 			add_action( 'mycred_after_core_prefs', array( $this, 'after_general_settings' ) );
 			add_filter( 'mycred_save_core_prefs',  array( $this, 'sanitize_extra_settings' ), 90, 3 );
-			
+
 			add_action( 'mycred_edit_profile',        array( $this, 'user_level_exchange_rates' ), 10, 2 );
 			add_action( 'mycred_edit_profile_action', array( $this, 'save_user_override' ) );
 			add_action( 'mycred_admin_notices',       array( $this, 'update_profile_notice' ) );
@@ -93,6 +96,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 			add_action( 'manage_buycred_payment_posts_custom_column', array( $this, 'adjust_column_content' ), 10, 2 );
 			add_filter( 'bulk_actions-edit-buycred_payment',          array( $this, 'bulk_actions' ) );
 			add_filter( 'post_row_actions',                           array( $this, 'adjust_row_actions' ), 10, 2 );
+
 		}
 
 		/**
@@ -101,8 +105,10 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		public function render_gift_tags( $content, $log ) {
+
 			if ( substr( $log->ref, 0, 15 ) != 'buy_creds_with_' ) return $content;
 			return $this->core->template_tags_user( $content, absint( $log->ref_id ) );
+
 		}
 
 		/**
@@ -174,7 +180,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				// Check payment processing
 				if ( isset( $_REQUEST['mycred_call'] ) || $gateway_id == 'zombaio' ) {
 					$gateway->process();
-				
+
 					do_action( 'mycred_buycred_process', $gateway_id, $this->gateway_prefs, $this->core->buy_creds );
 					do_action( 'mycred_buycred_process_' . $gateway_id, $this->gateway_prefs, $this->core->buy_creds );
 				}
@@ -193,12 +199,13 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 					if ( $token && $amount ) {
 						$gateway->buy();
-					
+
 						do_action( 'mycred_buycred_buy', $gateway_id, $this->gateway_prefs, $this->core->buy_creds );
 						do_action( 'mycred_buycred_buy_' . $gateway_id, $this->gateway_prefs, $this->core->buy_creds );
 					}
 				}
 			}
+
 		}
 
 		/**
@@ -236,6 +243,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 					$url = add_query_arg( array( 'credited' => 1 ), $url );
 					wp_safe_redirect( $url );
 					exit;
+
 				}
 
 			}
@@ -245,7 +253,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		/**
 		 * Register Pending Payments
 		 * @since 1.5
-		 * @version 1.0
+		 * @version 1.0.1
 		 */
 		function register_pending_payments() {
 
@@ -256,8 +264,8 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				'parent_item_colon'   => '',
 				'all_items'           => __( 'Pending Payments', 'mycred' ),
 				'view_item'           => '',
-				'add_new_item'        => '',
-				'add_new'             => '',
+				'add_new_item'        => __( 'Add New', 'mycred' ),
+				'add_new'             => __( 'Add New', 'mycred' ),
 				'edit_item'           => __( 'Edit Pending Payment', 'mycred' ),
 				'update_item'         => '',
 				'search_items'        => '',
@@ -291,6 +299,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		function adjust_column_headers( $columns ) {
+
 			return array(
 				'cb'       => $columns['cb'],
 				'comments' => $columns['comments'],
@@ -302,6 +311,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				'gateway'  => __( 'Gateway', 'mycred' ),
 				'ctype'    => __( 'Type', 'mycred' )
 			);
+
 		}
 
 		/**
@@ -310,6 +320,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		function adjust_column_content( $column_name, $post_id ) {
+
 			switch ( $column_name ) {
 				case 'author' :
 
@@ -348,15 +359,15 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				break;
 				case 'ctype';
 
-					$types = mycred_get_types();
 					$type = get_post_meta( $post_id, 'point_type', true );
-					if ( isset( $types[ $type ] ) )
-						echo $types[ $type ];
+					if ( isset( $this->point_types[ $type ] ) )
+						echo $this->point_types[ $type ];
 					else
 						echo $type;
 
 				break;
 			}
+
 		}
 
 		/**
@@ -365,8 +376,10 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		function bulk_actions( $actions ) {
+
 			unset( $actions['edit'] );
 			return $actions;
+
 		}
 
 		/**
@@ -375,6 +388,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		function adjust_row_actions( $actions, $post ) {
+
 			if ( $post->post_type == 'buycred_payment' ) {
 				unset( $actions['inline hide-if-no-js'] );
 
@@ -393,6 +407,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 			}
 
 			return $actions;
+
 		}
 
 		/**
@@ -401,17 +416,18 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.1
 		 */
 		function add_to_menu() {
+
 			if ( isset( $this->core->buy_creds['custom_log'] ) && $this->core->buy_creds['custom_log'] ) {
 				// Menu Slug
 				$menu_slug = 'myCRED';
-				
+
 				$types = array( 'mycred_default' );
 				if ( isset( $this->core->buy_creds['types'] ) )
 					$types = $this->core->buy_creds['types'];
 
 				$pages = array();
 				foreach ( $types as $type ) {
-				
+
 					$mycred = mycred( $type );
 
 					if ( $type != 'mycred_default' )
@@ -434,6 +450,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 				$this->purchase_log = $pages;
 			}
+
 		}
 
 		/**
@@ -443,6 +460,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0.1
 		 */
 		public function get() {
+
 			$installed = array();
 
 			// PayPal Standard
@@ -459,7 +477,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 			// NetBilling
 			$installed['netbilling'] = array(
-				'title'    => 'NETbilling',
+				'title'    => 'NETBilling',
 				'callback' => array( 'myCRED_NETbilling' )
 			);
 
@@ -479,6 +497,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 			$this->installed = $installed;
 			return $installed;
+
 		}
 
 		/**
@@ -487,8 +506,10 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.1
 		 */
 		public function settings_header() {
-			$gateway_icons = plugins_url( 'assets/images/gateway-icons.png', myCRED_THIS ); ?>
 
+			$gateway_icons = plugins_url( 'assets/images/gateway-icons.png', myCRED_THIS );
+
+?>
 <!-- buyCRED Module -->
 <style type="text/css">
 #myCRED-wrap #accordion h4 .gate-icon { display: block; width: 48px; height: 48px; margin: 0 0 0 0; padding: 0; float: left; line-height: 48px; }
@@ -499,6 +520,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 #myCRED-wrap #accordion h4 .gate-icon.monitor { background-position-x: 0; background-position-y: -48px; }
 </style>
 <?php
+
 		}
 
 		/**
@@ -507,6 +529,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.1
 		 */
 		public function screen_options() {
+
 			if ( empty( $this->purchase_log ) ) return;
 
 			$current_screen = get_current_screen();
@@ -518,6 +541,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				'option'  => 'mycred_payments_' . $current_screen->id
 			);
 			add_screen_option( 'per_page', $args );
+
 		}
 
 		/**
@@ -526,8 +550,10 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.1
 		 */
 		public function set_payments_per_page( $status, $option, $value ) {
+
 			if ( substr( $option, 0, 16 ) == 'mycred_payments_' ) return $value;
 			return $status;
+
 		}
 
 		/**
@@ -535,7 +561,8 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @since 0.1
 		 * @version 1.1
 		 */
-		public function after_general_settings() {
+		public function after_general_settings( $mycred ) {
+
 			// Since we are both registering our own settings and want to hook into
 			// the core settings, we need to define our "defaults" here.
 			$defaults = array(
@@ -569,9 +596,8 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 			$thankyou_use = $buy_creds['thankyou']['use'];
 			$cancelled_use = $buy_creds['cancelled']['use'];
-			
-			$mycred_types = mycred_get_types(); ?>
 
+?>
 <h4><div class="icon icon-active"></div><strong>buy</strong>CRED</h4>
 <div class="body" style="display:none;">
 	<label class="subheader"><?php echo $this->core->template_tags_general( __( 'Minimum %plural%', 'mycred' ) ); ?></label>
@@ -581,7 +607,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 			<span class="description"><?php echo $this->core->template_tags_general( __( 'Minimum amount of %plural% a user must purchase. Will default to 1.', 'mycred' ) ); ?></span>
 		</li>
 	</ol>
-	<?php if ( count( $mycred_types ) > 1 ) : ?>
+	<?php if ( count( $this->point_types ) > 1 ) : ?>
 
 	<label class="subheader"><?php _e( 'Point Types', 'mycred' ); ?></label>
 	<ol id="mycred-buy-creds-type">
@@ -621,6 +647,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		<li class="option">
 			<input type="radio" name="mycred_pref_core[buy_creds][thankyou][use]" <?php checked( $thankyou_use, 'page' ); ?> id="<?php echo $this->field_id( array( 'thankyou' => 'use' ) ); ?>-page" value="page" /> <label for="mycred-buy-creds-thankyou-use-page"><?php _e( 'Page', 'mycred' ); ?></label><br />
 <?php
+
 			// Thank you page dropdown
 			$thankyou_args = array(
 				'name'             => 'mycred_pref_core[buy_creds][thankyou][page]',
@@ -628,7 +655,10 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				'selected'         => $buy_creds['thankyou']['page'],
 				'show_option_none' => __( 'Select', 'mycred' )
 			);
-			wp_dropdown_pages( $thankyou_args ); ?>
+			wp_dropdown_pages( $thankyou_args );
+
+?>
+
 
 		</li>
 	</ol>
@@ -642,6 +672,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		<li class="option">
 			<input type="radio" name="mycred_pref_core[buy_creds][cancelled][use]" <?php checked( $cancelled_use, 'page' ); ?> id="<?php echo $this->field_id( array( 'cancelled' => 'use' ) ); ?>-page" value="page" /> <label for="<?php echo $this->field_id( array( 'cancelled' => 'use' ) ); ?>-page"><?php _e( 'Page', 'mycred' ); ?></label><br />
 <?php
+
 			// Cancelled page dropdown
 			$cancelled_args = array(
 				'name'             => 'mycred_pref_core[buy_creds][cancelled][page]',
@@ -649,8 +680,9 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				'selected'         => $buy_creds['cancelled']['page'],
 				'show_option_none' => __( 'Select', 'mycred' )
 			);
-			wp_dropdown_pages( $cancelled_args ); ?>
+			wp_dropdown_pages( $cancelled_args );
 
+?>
 		</li>
 	</ol>
 	<label class="subheader"><?php _e( 'Purchase Log', 'mycred' ); ?></label>
@@ -665,7 +697,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		<li>
 			<label for="<?php echo $this->field_id( array( 'gifting' => 'log' ) ); ?>"><?php _e( 'Log Template', 'mycred' ); ?></label>
 			<div class="h2"><input type="text" name="mycred_pref_core[buy_creds][gifting][log]" id="<?php echo $this->field_id( array( 'gifting' => 'log' ) ); ?>" value="<?php echo $buy_creds['gifting']['log']; ?>" class="long" /></div>
-			<div class="description"><?php echo $this->core->available_template_tags( array( 'general', 'user' ) ); ?></div>
+			<span class="description"><?php echo $this->core->available_template_tags( array( 'general', 'user' ) ); ?></span>
 		</li>
 	</ol>
 	<label class="subheader"><?php _e( 'Available Shortcodes', 'mycred' ); ?></label>
@@ -678,6 +710,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 	</ol>
 </div>
 <?php
+
 		}
 
 		/**
@@ -714,6 +747,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 			delete_option( 'mycred_buycred_reset' );
 
 			return $new_data;
+
 		}
 
 		/**
@@ -722,6 +756,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.0
 		 */
 		public function user_level_exchange_rates( $user, $type ) {
+
 			$types = array( 'mycred_default' );
 			if ( isset( $this->core->buy_creds['types'] ) )
 				$types = $this->core->buy_creds['types'];
@@ -736,14 +771,14 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 				if ( ! isset( $gateway_prefs['exchange'][ $type ] ) || ( isset( $gateway_prefs['currency'] ) && $gateway_prefs['currency'] == '' ) ) continue;
 				$usable[ $gateway_id ] = $gateway_prefs;
 				$usable[ $gateway_id ]['title'] = $prefs['title'];
-				
+
 				if ( ! isset( $users_saved_overrides[ $gateway_id ] ) )
 					$users_saved_overrides[ $gateway_id ] = '';
 			}
 			if ( empty( $usable ) ) return;
-			
+
 			$mycred = mycred( $type );
-			
+
 ?>
 
 <h3><strong>buy</strong>CRED</h3>
@@ -774,7 +809,7 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		/**
 		 * Save Override
 		 * @since 1.5
-		 * @version 1.0
+		 * @version 1.1
 		 */
 		public function save_user_override() {
 
@@ -782,9 +817,9 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 
 				$ctype = sanitize_key( $_GET['ctype'] );
 				$user_id = absint( $_GET['user_id'] );
-				
+
 				$mycred = mycred( $ctype );
-				
+
 				if ( $mycred->edit_plugin_cap() && ! $mycred->exclude_user( $user_id ) ) {
 
 					$new_rates = array();
@@ -797,15 +832,13 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 						$new_rates[ $gateway_id ] = $rate;
 					}
 
-					if ( ! empty( $new_rates ) ) {
+					if ( ! empty( $new_rates ) )
 						mycred_update_user_meta( $user_id, 'mycred_buycred_rates_' . $ctype, '', $new_rates );
-
-						wp_safe_redirect( add_query_arg( array( 'result' => 'buycred_rates' ) ) );
-						exit;
-					}
-					else {
+					else
 						mycred_delete_user_meta( $user_id, 'mycred_buycred_rates_' . $ctype );
-					}
+
+					wp_safe_redirect( add_query_arg( array( 'result' => 'buycred_rates' ) ) );
+					exit;
 
 				}
 
@@ -834,20 +867,23 @@ if ( ! class_exists( 'myCRED_buyCRED_Module' ) ) {
 		 * @version 1.2
 		 */
 		public function admin_page() {
+
 			// Security
 			if ( ! $this->core->can_edit_creds() )
 				wp_die( __( 'Access Denied', 'mycred' ) );
 
 			$installed = $this->get();
-?>
 
+?>
 <div class="wrap list" id="myCRED-wrap">
 	<h2><?php echo sprintf( __( '%s Payment Gateways', 'mycred' ), '<strong>buy</strong>CRED' ); ?> <?php if ( isset( $this->core->buy_creds['custom_log'] ) && $this->core->buy_creds['custom_log'] == 1 ) : ?><a href="<?php echo admin_url( 'admin.php?page=myCRED_page_gateways_log' ); ?>" class="add-new-h2"><?php _e( 'Purchase Log', 'mycred' ); ?></a><?php endif; ?><a href="<?php echo $this->get_settings_url( 'buycred_module' ); ?>" class="add-new-h2"><?php _e( 'buyCRED Settings', 'mycred' ); ?></a></h2>
 <?php
+
 			// Updated settings
 			if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] == true )
-				echo '<div class="updated settings-error"><p>' . __( 'Settings Updated', 'mycred' ) . '</p></div>'; ?>
+				echo '<div class="updated settings-error"><p>' . __( 'Settings Updated', 'mycred' ) . '</p></div>';
 
+?>
 	<form method="post" action="options.php">
 		<?php settings_fields( $this->settings_name ); ?>
 
@@ -915,14 +951,16 @@ jQuery(function($) {
 </script>
 </div>
 <?php
+
 		}
 
 		/**
 		 * Custom Log Page
 		 * @since 1.4
-		 * @version 1.2
+		 * @version 1.3
 		 */
 		public function purchase_log_page() {
+
 			$type = substr( $_GET['page'], 25 );
 
 			if ( $type == 'mycred_default' )
@@ -967,10 +1005,13 @@ jQuery(function($) {
 
 			if ( isset( $_GET['order'] ) && ! empty( $_GET['order'] ) )
 				$args['order'] = $_GET['order'];
-			
+
+			if ( isset( $_GET['paged'] ) && ! empty( $_GET['paged'] ) )
+				$args['paged'] = $_GET['paged'];
+
 			if ( isset( $_GET['start'] ) && isset( $_GET['end'] ) )
 				$args['amount'] = array( 'start' => $_GET['start'], 'end' => $_GET['end'] );
-			
+
 			elseif ( isset( $_GET['num'] ) && isset( $_GET['compare'] ) )
 				$args['amount'] = array( 'num' => $_GET['num'], 'compare' => $_GET['compare'] );
 
@@ -978,7 +1019,7 @@ jQuery(function($) {
 				$args['amount'] = $_GET['amount'];
 
 			$log = new myCRED_Query_Log( $args );
-			
+
 			$log->headers = apply_filters( 'mycred_buycred_log_columns', array(
 				'column-gateway'  => __( 'Gateway', 'mycred' ),
 				'column-username' => __( 'Buyer', 'mycred' ),
@@ -986,8 +1027,9 @@ jQuery(function($) {
 				'column-amount'   => $mycred->plural(),
 				'column-payed'    => __( 'Payed', 'mycred' ),
 				'column-tranid'   => __( 'Transaction ID', 'mycred' )
-			) ); ?>
+			) );
 
+?>
 <div class="wrap list" id="myCRED-wrap">
 	<h2><?php _e( '<strong>buy</strong>CRED Purchase Log', 'mycred' ); ?> <a href="<?php echo admin_url( 'admin.php?page=myCRED_page_gateways' ); ?>" class="click-to-toggle add-new-h2"><?php _e( 'Gateway Settings', 'mycred' ); ?></a> <a href="<?php echo $this->get_settings_url( 'buycred_module' ); ?>" class="click-to-toggle add-new-h2"><?php _e( 'buyCRED Settings', 'mycred' ); ?></a></h2>
 	<?php $log->filter_dates( admin_url( 'admin.php?page=myCRED_page_gateways_log_' . $type ) ); ?>
@@ -997,19 +1039,22 @@ jQuery(function($) {
 <?php
 
 			if ( isset( $_GET['user_id'] ) && ! empty( $_GET['user_id'] ) )
-				echo '<input type="hidden" name="user_id" value="' . $_GET['user_id'] . '" />';
+				echo '<input type="hidden" name="user_id" value="' . esc_attr( $_GET['user_id'] ) . '" />';
 
 			if ( isset( $_GET['s'] ) && ! empty( $_GET['s'] ) )
-				echo '<input type="hidden" name="s" value="' . $_GET['s'] . '" />';
+				echo '<input type="hidden" name="s" value="' . esc_attr( $_GET['s'] ) . '" />';
 
 			if ( isset( $_GET['ref'] ) && ! empty( $_GET['ref'] ) )
-				echo '<input type="hidden" name="ref" value="' . $_GET['ref'] . '" />';
+				echo '<input type="hidden" name="ref" value="' . esc_attr( $_GET['ref'] ) . '" />';
 
 			if ( isset( $_GET['show'] ) && ! empty( $_GET['show'] ) )
-				echo '<input type="hidden" name="show" value="' . $_GET['show'] . '" />';
+				echo '<input type="hidden" name="show" value="' . esc_attr( $_GET['show'] ) . '" />';
 
 			if ( isset( $_GET['order'] ) && ! empty( $_GET['order'] ) )
-				echo '<input type="hidden" name="order" value="' . $_GET['order'] . '" />';
+				echo '<input type="hidden" name="order" value="' . esc_attr( $_GET['order'] ) . '" />';
+
+			if ( isset( $_GET['paged'] ) && ! empty( $_GET['paged'] ) )
+				echo '<input type="hidden" name="paged" value="' . esc_attr( $_GET['paged'] ) . '" />';
 
 			$log->search(); ?>
 
@@ -1018,30 +1063,36 @@ jQuery(function($) {
 
 		<div class="tablenav top">
 <?php 
+
 			$log->filter_options( false, $references );
 			$log->navigation( 'top' );
-?>
 
+?>
 		</div>
 		<table class="table wp-list-table widefat mycred-table log-entries" cellspacing="0">
 			<thead>
 				<tr>
 <?php
+
 			foreach ( $log->headers as $col_id => $col_title )
 				echo '<th scope="col" id="' . str_replace( 'column-', '', $col_id ) . '" class="manage-column ' . $col_id . '">' . $col_title . '</th>';
+
 ?>
 				</tr>
 			</thead>
 			<tfoot>
 				<tr>
 <?php
+
 			foreach ( $log->headers as $col_id => $col_title )
 				echo '<th scope="col" class="manage-column ' . $col_id . '">' . $col_title . '</th>';
+
 ?>
 				</tr>
 			</tfoot>
 			<tbody id="the-list">
 <?php
+
 			// If we have results
 			if ( $log->have_entries() ) {
 
@@ -1050,7 +1101,7 @@ jQuery(function($) {
 				$entry_data = '';
 				$alt = 0;
 
-				// Loop results				
+				// Loop results
 				foreach ( $log->results as $log_entry ) {
 
 					// Highlight alternate rows
@@ -1078,9 +1129,9 @@ jQuery(function($) {
 						$style = ' style="color:orange;"';
 					else
 						$style = '';
-			
+
 					echo '<tr class="myCRED-log-row' . $class . '" id="mycred-log-entry-' . $log_entry->id . '">';
-					
+
 					// Run though columns
 					foreach ( $log->headers as $column_id => $column_name ) {
 
@@ -1090,10 +1141,10 @@ jQuery(function($) {
 
 							// Used gateway
 							case 'column-gateway' :
-							
+
 								$gateway = str_replace( array( '-', '_' ), ' ', $gateway_name );
 								echo ucwords( $gateway );
-							
+
 							break;
 
 							// Username Column
@@ -1167,11 +1218,12 @@ jQuery(function($) {
 			else {
 				echo '<tr><td colspan="' . count( $log->headers ) . '" class="no-entries">' . __( 'No purchases found', 'mycred' ) . '</td></tr>';
 			}
-?>
 
+?>
 			</tbody>
 		</table>
 		<div class="tablenav bottom">
+
 			<?php $log->table_nav( 'bottom', false ); ?>
 
 		</div>
@@ -1180,6 +1232,7 @@ jQuery(function($) {
 	</form>
 </div>
 <?php
+
 		}
 
 		/**
@@ -1188,6 +1241,7 @@ jQuery(function($) {
 		 * @version 1.0
 		 */
 		public function get_sales_data_from_log_data( $log_data = '' ) {
+
 			$defaults = array( '', '', '', '', '', '', '' );
 			$log_data = maybe_unserialize( $log_data );
 
@@ -1205,6 +1259,7 @@ jQuery(function($) {
 			}
 
 			return mycred_apply_defaults( $defaults, $found_data );
+
 		}
 
 		/**
@@ -1213,6 +1268,7 @@ jQuery(function($) {
 		 * @version 1.2
 		 */
 		public function sanitize_settings( $data ) {
+
 			$data = apply_filters( 'mycred_buycred_save_prefs', $data );
 
 			$installed = $this->get();
@@ -1223,6 +1279,7 @@ jQuery(function($) {
 
 			unset( $installed );
 			return $data;
+
 		}
 
 		/**
@@ -1232,6 +1289,7 @@ jQuery(function($) {
 		 * @version 1.5
 		 */
 		public function render_shortcode_basic( $atts, $title = '' ) {
+
 			// Make sure the add-on has been setup
 			if ( ! isset( $this->core->buy_creds ) ) {
 				if ( mycred_is_admin() )
@@ -1334,8 +1392,9 @@ jQuery(function($) {
 
 			// Element to return
 			$element = '<a href="' . add_query_arg( $args, $url ) . '" class="' . implode( ' ', $classes ) . '" title="' . $title . '">' . $title . '</a>';
-			unset( $this );
+
 			return $element;
+
 		}
 
 		/**
@@ -1345,6 +1404,7 @@ jQuery(function($) {
 		 * @version 1.5
 		 */
 		public function render_shortcode_form( $atts, $content = '' ) {
+
 			// Make sure the add-on has been setup
 			if ( ! isset( $this->core->buy_creds ) ) {
 				if ( mycred_is_admin() )
@@ -1555,6 +1615,7 @@ form.myCRED-buy-form > div label { display: block; }
 </form>';
 
 			return $form;
+
 		}
 
 		/**
@@ -1563,6 +1624,7 @@ form.myCRED-buy-form > div label { display: block; }
 		 * @version 1.0
 		 */
 		public function render_shortcode_pending( $attr, $content = '' ) {
+
 			// Must be logged in
 			if ( ! is_user_logged_in() ) return $content;
 
@@ -1575,7 +1637,7 @@ form.myCRED-buy-form > div label { display: block; }
 			$user_id = get_current_user_id();
 
 			global $wpdb;
-			
+
 			$pending = $wpdb->get_results( $wpdb->prepare( "
 				SELECT * 
 				FROM {$wpdb->posts} posts 
@@ -1586,8 +1648,9 @@ form.myCRED-buy-form > div label { display: block; }
 				AND posts.post_status = %s
 				AND meta.meta_value = %s;", 'point_type', 'buycred_payment', $user_id, 'publish', $ctype ) );
 
-			ob_start(); ?>
+			ob_start();
 
+?>
 <div id="pending-buycred-payments-<?php echo $ctype; ?>">
 	<table class="table">
 		<thead>
@@ -1603,15 +1666,18 @@ form.myCRED-buy-form > div label { display: block; }
 <?php
 
 			if ( ! empty( $pending ) ) {
+
 				foreach ( $pending as $post ) {
+
 					$cancel_url = add_query_arg( array( 'buycred_cancel' => $post->post_title ) );
 					$revisit_url = add_query_arg( array(
 						'mycred_buy' => get_post_meta( $post->ID, 'gateway', true ),
 						'amount'     => get_post_meta( $post->ID, 'amount', true ),
 						'revisit'    => $post->post_title,
 						'token'      => wp_create_nonce( 'mycred-buy-creds' )
-					) ); ?>
+					) );
 
+?>
 			<tr>
 				<td class="column-transaction-id"><?php echo $post->post_title; ?></td>
 				<td class="column-gateway"><?php echo $this->adjust_column_content( 'gateway', $post->ID ); ?></td>
@@ -1624,9 +1690,11 @@ form.myCRED-buy-form > div label { display: block; }
 <?php
  
 				}
-			}
-			else { ?>
 
+			}
+			else {
+
+?>
 			<tr>
 				<td colspan="5"><?php _e( 'No pending payments found', 'mycred' ); ?></td>
 			</tr>
@@ -1639,10 +1707,12 @@ form.myCRED-buy-form > div label { display: block; }
 	</table>
 </div>
 <?php
+
 			$output = ob_get_contents();
 			ob_end_clean();
-			
+
 			return $output;
+
 		}
 
 		/**
@@ -1651,11 +1721,13 @@ form.myCRED-buy-form > div label { display: block; }
 		 * @version 1.0
 		 */
 		public function prep_shortcode_title( $string = '' ) {
+
 			$string = $this->core->allowed_tags( $string, false );
 			$string = trim( $string );
 			$title = $this->core->template_tags_general( $string );
 
 			return $title;
+
 		}
 
 		/**
@@ -1664,6 +1736,7 @@ form.myCRED-buy-form > div label { display: block; }
 		 * @version 1.0
 		 */
 		public function prep_shortcode_amount( $amount = '' ) {
+
 			$amount = $this->core->number( $amount );
 			$minimum = $this->core->number( $this->core->buy_creds['minimum'] );
 
@@ -1671,6 +1744,7 @@ form.myCRED-buy-form > div label { display: block; }
 				return $minimum;
 			else
 				return $amount;
+
 		}
 
 		/**
@@ -1679,6 +1753,7 @@ form.myCRED-buy-form > div label { display: block; }
 		 * @version 1.0
 		 */
 		public function prep_shortcode_gifting( $gift_to = '' ) {
+
 			if ( empty( $gift_to ) ) return $gift_to;
 
 			if ( $this->core->buy_creds['gifting']['authors'] == 1 && $gift_to == 'author' && in_the_loop() )
@@ -1688,11 +1763,13 @@ form.myCRED-buy-form > div label { display: block; }
 				return abs( $gift_to );
 
 			return false;
+
 		}
+
 	}
 
 	$buy_creds = new myCRED_buyCRED_Module();
 	$buy_creds->load();
-}
 
+endif;
 ?>

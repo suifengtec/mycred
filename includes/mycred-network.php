@@ -4,7 +4,7 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
 /**
  * myCRED_Network class
  * @since 0.1
- * @version 1.1
+ * @version 1.2
  */
 if ( ! class_exists( 'myCRED_Network_Module' ) ) {
 	class myCRED_Network_Module {
@@ -23,14 +23,12 @@ if ( ! class_exists( 'myCRED_Network_Module' ) ) {
 		/**
 		 * Load
 		 * @since 0.1
-		 * @version 1.0
+		 * @version 1.1
 		 */
 		public function load() {
 			add_action( 'admin_init',         array( $this, 'module_admin_init' ) );
 			add_action( 'admin_head',         array( $this, 'admin_menu_styling' ) );
 			add_action( 'network_admin_menu', array( $this, 'add_menu' ) );
-
-			add_filter( 'site_option_active_sitewide_plugins', array( $this, 'network_check' ) );
 		}
 
 		/**
@@ -67,27 +65,6 @@ if ( ! class_exists( 'myCRED_Network_Module' ) ) {
 
 			foreach ( $pages as $page )
 				add_action( 'admin_print_styles-' . $page, array( $this, 'admin_menu_styling' ) );
-		}
-
-		/**
-		 * Network Check
-		 * Blocks mycred from being used if the plugin is network wide
-		 * enabled.
-		 * @since 1.3
-		 * @version 1.0
-		 */
-		public function network_check( $value ) {
-			global $current_blog;
-			
-			$network = mycred_get_settings_network();
-			if ( empty( $network['block'] ) ) return $value;
-			
-			$list = explode( ',', $network['block'] );
-			if ( in_array( $current_blog->blog_id, $list ) ) {
-				unset( $value['mycred/mycred.php'] );
-			}
-			
-			return $value;
 		}
 
 		/**

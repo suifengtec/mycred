@@ -5,7 +5,7 @@ if ( ! defined( 'myCRED_VERSION' ) ) exit;
  * Query Log
  * @see http://codex.mycred.me/classes/mycred_query_log/ 
  * @since 0.1
- * @version 1.4.1
+ * @version 1.4.3
  */
 if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 	class myCRED_Query_Log {
@@ -63,7 +63,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 				'cache'    => '',
 				'paged'    => $this->get_pagenum()
 			);
-			$this->args = mycred_apply_defaults( $defaults, $args );
+			$this->args = wp_parse_args( $args, $defaults );
 			
 			// Difference between default and given args
 			$this->diff = array_diff_assoc( $this->args, $defaults );
@@ -86,8 +86,13 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 
 				// User ID
 				if ( $this->args['user_id'] !== NULL && $this->args['user_id'] != '' ) {
-					$wheres[] = 'user_id = %d';
-					$prep[] = abs( $this->args['user_id'] );
+
+					$user_id = $this->get_user_id( $this->args['user_id'] );
+
+					if ( $user_id !== false ) {
+						$wheres[] = 'user_id = %d';
+						$prep[] = $user_id;
+					}
 				}
 
 				// Reference
@@ -117,7 +122,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 					}
 					else {
 						$wheres[] = 'ref_id = %d';
-						$prep[] = (int) sanitize_text_field( $ref_ids[0] );
+						$prep[] = (int) sanitize_text_field( $this->args['ref_id'] );
 					}
 				}
 
@@ -246,7 +251,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 							$page = 1;
 					}
 
-					if ( $this->args['offset'] != '' ) {
+					if ( $this->args['offset'] == '' ) {
 						$pgstrt = ($page - 1) * $number . ', ';
 					}
 					else {
@@ -317,6 +322,33 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 		}
 
 		/**
+		 * Get User ID
+		 * Converts username, email or userlogin into an ID if possible
+		 * @since 1.6.3
+		 * @version 1.0
+		 */
+		public function get_user_id( $string = '' ) {
+
+			if ( ! is_numeric( $string ) ) {
+
+				$user = get_user_by( 'login', $string );
+				if ( ! isset( $user->ID ) ) {
+					$user = get_user_by( 'email', $string );
+					if ( ! isset( $user->ID ) ) {
+						$user = get_user_by( 'slug', $string );
+						if ( ! isset( $user->ID ) )
+							return false;
+					}
+				}
+				return absint( $user->ID );
+
+			}
+
+			return $string;
+
+		}
+
+		/**
 		 * Has Entries
 		 * @returns true or false
 		 * @since 0.1
@@ -382,7 +414,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 		/**
 		 * Pagination
 		 * @since 1.4
-		 * @version 1.0
+		 * @version 1.0.2
 		 */
 		public function pagination( $location = 'top', $id = '' ) {
 			$output = '';
@@ -399,6 +431,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 			}
 
 			$page_links = array();
+			$pagination_class = apply_filters( 'mycred_log_paginate_class', '', $this );
 
 			$disable_first = $disable_last = '';
 			if ( $current == 1 )
@@ -407,15 +440,15 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 				$disable_last = ' disabled';
 
 			$page_links[] = sprintf( '<a class="%s" title="%s" href="%s">%s</a>',
-				'btn btn-default btn-sm first-page' . $disable_first,
-				esc_attr__( 'Go to the first page' ),
+				$pagination_class . 'first-page' . $disable_first,
+				esc_attr__( 'Go to the first page', 'mycred' ),
 				esc_url( remove_query_arg( 'paged', $current_url ) ),
 				'&laquo;'
 			);
 
 			$page_links[] = sprintf( '<a class="%s" title="%s" href="%s">%s</a>',
-				'btn btn-default btn-sm prev-page' . $disable_first,
-				esc_attr__( 'Go to the previous page' ),
+				$pagination_class . 'prev-page' . $disable_first,
+				esc_attr__( 'Go to the previous page', 'mycred' ),
 				esc_url( add_query_arg( 'paged', max( 1, $current-1 ), $current_url ) ),
 				'&lsaquo;'
 			);
@@ -423,38 +456,37 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 			if ( 'bottom' == $location )
 				$html_current_page = $current;
 			else
-				$html_current_page = sprintf( '<input class="current-page btn btn-sm" title="%s" type="text" name="paged" value="%s" size="%d" />',
-					esc_attr__( 'Current page' ),
+				$html_current_page = sprintf( '<input class="current-page" title="%s" type="text" name="paged" value="%s" size="%d" />',
+					esc_attr__( 'Current page', 'mycred' ),
 					$current,
 					strlen( $total_pages )
 				);
 
 			$html_total_pages = sprintf( "<span class='total-pages'>%s</span>", number_format_i18n( $total_pages ) );
-			$page_links[] = '<span class="paging-input">' . sprintf( _x( '%1$s of %2$s', 'paging' ), $html_current_page, $html_total_pages ) . '</span>';
+			$page_links[] = '<span class="paging-input">' . sprintf( _x( '%1$s of %2$s', 'mycred' ), $html_current_page, $html_total_pages ) . '</span>';
 
 			$page_links[] = sprintf( '<a class="%s"  title="%s" href="%s">%s</a>',
-				'btn btn-default btn-sm next-page' . $disable_last,
-				esc_attr__( 'Go to the next page' ),
+				$pagination_class . 'next-page' . $disable_last,
+				esc_attr__( 'Go to the next page', 'mycred' ),
 				esc_url( add_query_arg( 'paged', min( $total_pages, $current+1 ), $current_url ) ),
 				'&rsaquo;'
 			);
 
 			$page_links[] = sprintf( '<a class="%s" title="%s" href="%s">%s</a>',
-				'btn btn-default btn-sm last-page' . $disable_last,
-				esc_attr__( 'Go to the last page' ),
+				$pagination_class . 'last-page' . $disable_last,
+				esc_attr__( 'Go to the last page', 'mycred' ),
 				esc_url( add_query_arg( 'paged', $total_pages, $current_url ) ),
 				'&raquo;'
 			);
 
-			$pagination_links_class = 'pagination-links';
-			$output .= "\n<span class='$pagination_links_class'>" . join( "\n", $page_links ) . '</span>';
+			$output .= "\n" . '<span class="pagination-links">' . join( "\n", $page_links ) . '</span>';
 
 			if ( $total_pages )
 				$page_class = $total_pages < 2 ? ' one-page' : '';
 			else
 				$page_class = ' no-pages';
 
-			echo "<div class='tablenav-pages{$page_class}'>$output</div>";
+			echo '<div class="tablenav-pages' . $page_class . '">' . $output . '</div>';
 		}
 
 		/**
@@ -522,7 +554,7 @@ if ( ! class_exists( 'myCRED_Query_Log' ) ) :
 
 			// Filter by user
 			if ( $this->core->can_edit_creds() && ! $is_profile && $this->num_rows > 0 ) {
-				echo '<input type="text" class="form-control" name="user_id" id="myCRED-user-filter" size="12" placeholder="' . __( 'User ID', 'mycred' ) . '" value="' . ( ( isset( $_GET['user_id'] ) ) ? $_GET['user_id'] : '' ) . '" /> ';
+				echo '<input type="text" class="form-control" name="user" id="myCRED-user-filter" size="32" placeholder="' . __( 'User ID, Username, Email or Nicename', 'mycred' ) . '" value="' . ( ( isset( $_GET['user'] ) ) ? $_GET['user'] : '' ) . '" /> ';
 				$show = true;
 			}
 

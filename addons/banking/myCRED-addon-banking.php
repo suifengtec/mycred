@@ -2,7 +2,7 @@
 /**
  * Addon: Banking
  * Addon URI: http://mycred.me/add-ons/banking/
- * Version: 1.0
+ * Version: 1.2
  * Description: Setup recurring payouts or offer / charge interest on user account balances.
  * Author: Gabriel S Merovingi
  * Author URI: http://www.merovingi.com
@@ -15,6 +15,8 @@ define( 'myCRED_BANK_ABSTRACT_DIR', myCRED_BANK_DIR . 'abstracts/' );
 define( 'myCRED_BANK_SERVICES_DIR', myCRED_BANK_DIR . 'services/' );
 
 require_once( myCRED_BANK_ABSTRACT_DIR . 'mycred-abstract-service.php' );
+
+require_once( myCRED_BANK_SERVICES_DIR . 'mycred-bank-service-central.php' );
 require_once( myCRED_BANK_SERVICES_DIR . 'mycred-bank-service-interest.php' );
 require_once( myCRED_BANK_SERVICES_DIR . 'mycred-bank-service-payouts.php' );
 
@@ -29,7 +31,7 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		/**
 		 * Constructor
 		 */
-		public function __construct() {
+		public function __construct( $type = 'mycred_default' ) {
 			parent::__construct( 'myCRED_Banking_Module', array(
 				'module_name' => 'banking',
 				'option_id'   => 'mycred_pref_bank',
@@ -46,7 +48,11 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 				'screen_id'   => 'myCRED_page_banking',
 				'accordion'   => true,
 				'menu_pos'    => 30
-			) );
+			), $type );
+
+			add_action( 'mycred_edit_profile',        array( $this, 'user_level_override' ), 30, 2 );
+			add_action( 'mycred_edit_profile_action', array( $this, 'save_user_level_override' ) );
+			add_action( 'mycred_admin_notices',       array( $this, 'update_user_level_profile_notice' ) );	
 		}
 
 		/**
@@ -55,10 +61,59 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		 * @version 1.0
 		 */
 		public function module_init() {
+
 			if ( ! empty( $this->services ) ) {
 				foreach ( $this->services as $key => $gdata ) {
 					if ( $this->is_active( $key ) && isset( $gdata['callback'] ) ) {
 						$this->call( 'run', $gdata['callback'] );
+					}
+				}
+			}
+
+		}
+
+		/**
+		 * User Level Override
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		public function user_level_override( $user, $type ) {
+			if ( $this->mycred_type != $type ) return;
+
+			if ( ! empty( $this->services ) ) {
+				foreach ( $this->services as $key => $gdata ) {
+					if ( $this->is_active( $key ) && isset( $gdata['callback'] ) ) {
+						$this->call( 'user_override', $gdata['callback'], $user, $type );
+					}
+				}
+			}
+		}
+
+		/**
+		 * Save User Level Override
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		public function save_user_level_override() {
+			if ( ! empty( $this->services ) ) {
+				foreach ( $this->services as $key => $gdata ) {
+					if ( $this->is_active( $key ) && isset( $gdata['callback'] ) ) {
+						$this->call( 'save_user_override', $gdata['callback'] );
+					}
+				}
+			}
+		}
+
+		/**
+		 * User Level Profile Notice
+		 * @since 1.5.2
+		 * @version 1.0
+		 */
+		public function update_user_level_profile_notice() {
+			if ( ! empty( $this->services ) ) {
+				foreach ( $this->services as $key => $gdata ) {
+					if ( $this->is_active( $key ) && isset( $gdata['callback'] ) ) {
+						$this->call( 'user_override_notice', $gdata['callback'] );
 					}
 				}
 			}
@@ -70,19 +125,19 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		 * @since 1.2
 		 * @version 1.1
 		 */
-		public function call( $call, $callback, $return = NULL ) {
+		public function call( $call, $callback, $return = NULL, $var1 = NULL, $var2 = NULL, $var3 = NULL ) {
 			// Class
 			if ( is_array( $callback ) && class_exists( $callback[0] ) ) {
 				$class = $callback[0];
 				$methods = get_class_methods( $class );
 				if ( in_array( $call, $methods ) ) {
-					$new = new $class( ( isset( $this->service_prefs ) ) ? $this->service_prefs : array() );
-					return $new->$call( $return );
+					$new = new $class( ( isset( $this->service_prefs ) ) ? $this->service_prefs : array(), $this->mycred_type );
+					return $new->$call( $return, $var1, $var2, $var3 );
 				}
 			}
 
 			// Function
-			if ( ! is_array( $callback ) ) {
+			elseif ( ! is_array( $callback ) ) {
 				if ( function_exists( $callback ) ) {
 					if ( $return !== NULL )
 						return call_user_func( $callback, $return, $this );
@@ -99,27 +154,35 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		 */
 		public function get( $save = false ) {
 			// Savings
+			$services['central'] = array(
+				'title'        => __( 'Central Banking', 'mycred' ),
+				'description'  => __( 'Instead of creating %_plural% out of thin-air, all payouts are made from a nominated "Central Bank" account. Any %_plural% a user spends or loses are deposited back into this account.', 'mycred' ),
+				'callback'     => array( 'myCRED_Banking_Service_Central' )
+			);
+
+			// Interest
 			$services['interest'] = array(
 				'title'        => __( 'Compound Interest', 'mycred' ),
-				'description'  => __( 'Apply an interest rate on your users %_plural% balances. Interest rate is annual and is compounded daily as long as this service is enabled. Positive interest rate leads to users gaining %_plural% while a negative interest rate will to users loosing %_plural%.', 'mycred' ),
+				'description'  => __( 'Apply a positive or negative interest rate on your users %_plural% balances.', 'mycred' ),
 				'callback'     => array( 'myCRED_Banking_Service_Interest' )
 			);
 
 			// Inflation
 			$services['payouts'] = array(
 				'title'       => __( 'Recurring Payouts', 'mycred' ),
-				'description' => __( 'Give your users %_plural% on a regular basis with the option to set the number of times you want this payout to run (cycles).', 'mycred' ),
+				'description' => __( 'Setup mass %_singular% payouts for your users.', 'mycred' ),
 				'callback'    => array( 'myCRED_Banking_Service_Payouts' )
 			);
 
 			$services = apply_filters( 'mycred_setup_banking', $services );
 
 			if ( $save === true && $this->core->can_edit_plugin() ) {
-				mycred_update_option( 'mycred_pref_bank', array(
+				$new_data = array(
 					'active'        => $this->active,
 					'services'      => $services,
 					'service_prefs' => $this->service_prefs
-				) );
+				);
+				mycred_update_option( $this->option_id, $new_data );
 			}
 
 			$this->services = $services;
@@ -131,7 +194,7 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		 * @since 1.3
 		 * @version 1.0
 		 */
-		public function add_to_page_enqueue() {
+		public function settings_header() {
 			$banking_icons = plugins_url( 'assets/images/gateway-icons.png', myCRED_THIS ); ?>
 
 <!-- Banking Add-on -->
@@ -156,24 +219,21 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 				wp_die( __( 'Access Denied', 'mycred' ) );
 
 			// Get installed
-			$installed = $this->get( true );
-
-			// Message
-			if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] == true ) {
-				echo '<div class="updated settings-error"><p>' . __( 'Settings Updated', 'mycred' ) . '</p></div>';
-			} ?>
+			$installed = $this->get( true ); ?>
 
 <div class="wrap" id="myCRED-wrap">
 	<h2><?php echo sprintf( __( '%s Banking', 'mycred' ), mycred_label() ); ?></h2>
-	<p><?php echo $this->core->template_tags_general( __( 'Setup recurring payouts or offer / charge interest on user account balances.', 'mycred' ) ); ?></p>
+	<?php $this->update_notice(); ?>
+
+	<p><?php echo $this->core->template_tags_general( __( 'Your banking setup for %plural%.', 'mycred' ) ); ?></p>
 	<?php if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) : ?>
 
 	<p><strong><?php _e( 'WP-Cron deactivation detected!', 'mycred' ); ?></strong></p>
 	<p><?php _e( 'Warning! This add-on requires WP - Cron to work.', 'mycred' ); ?></p>
-	<?php return; endif; ?>
+	<?php endif; ?>
 
 	<form method="post" action="options.php">
-		<?php settings_fields( 'myCRED-banking' ); ?>
+		<?php settings_fields( $this->settings_name ); ?>
 
 		<!-- Loop though Services -->
 		<div class="list-items expandable-li" id="accordion">
@@ -188,7 +248,7 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 				<label class="subheader"><?php _e( 'Enable', 'mycred' ); ?></label>
 				<ol>
 					<li>
-						<input type="checkbox" name="mycred_pref_bank[active][]" id="mycred-bank-service-<?php echo $key; ?>" value="<?php echo $key; ?>"<?php if ( $this->is_active( $key ) ) echo ' checked="checked"'; ?> />
+						<input type="checkbox" name="<?php echo $this->option_id; ?>[active][]" id="mycred-bank-service-<?php echo $key; ?>" value="<?php echo $key; ?>"<?php if ( $this->is_active( $key ) ) echo ' checked="checked"'; ?> />
 					</li>
 				</ol>
 				<?php echo $this->call( 'preferences', $data['callback'] ); ?>
@@ -208,7 +268,7 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 		/**
 		 * Sanititze Settings
 		 * @since 1.2
-		 * @version 1.0
+		 * @version 1.1
 		 */
 		public function sanitize_settings( $post ) {
 			// Loop though all installed hooks
@@ -216,13 +276,13 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 
 			// Construct new settings
 			$new_post['services'] = $installed;
-			if ( empty( $post['active'] ) || ! isset( $post['active'] ) ) $post['active'] = array();
+			if ( empty( $post['active'] ) || ! isset( $post['active'] ) )
+				$post['active'] = array();
+
 			$new_post['active'] = $post['active'];
 
 			if ( ! empty( $installed ) ) {
-				// Loop though all installed
 				foreach ( $installed as $key => $data ) {
-					// Callback and settings are required
 					if ( isset( $data['callback'] ) && isset( $post['service_prefs'][ $key ] ) ) {
 						// Old settings
 						$old_settings = $post['service_prefs'][ $key ];
@@ -233,30 +293,38 @@ if ( ! class_exists( 'myCRED_Banking_Module' ) ) {
 						// If something went wrong use the old settings
 						if ( empty( $new_settings ) || $new_settings === NULL || ! is_array( $new_settings ) )
 							$new_post['service_prefs'][ $key ] = $old_settings;
-
 						// Else we got ourselves new settings
 						else
 							$new_post['service_prefs'][ $key ] = $new_settings;
 
 						// Handle de-activation
-						if ( isset( $this->active ) && ! empty( $this->active ) ) {
-							foreach ( $this->active as $id ) {
-								// If a previously active id is no longer in the new active array call deactivate
-								if ( ! in_array( $id, $new_post['active'] ) ) {
-									$this->call( 'deactivate', $data['callback'] );
-								}
-							}
-						}
+						if ( in_array( $key, (array) $this->active ) && ! in_array( $key, $new_post['active'] ) )
+							$this->call( 'deactivate', $data['callback'], $new_post['service_prefs'][ $key ] );
+
+						// Handle activation
+						if ( ! in_array( $key, (array) $this->active ) && in_array( $key, $new_post['active'] ) )
+							$this->call( 'activate', $data['callback'], $new_post['service_prefs'][ $key ] );
+
 						// Next item
 					}
 				}
 			}
 
+			$installed = NULL;
 			return $new_post;
 		}
 	}
+}
 
-	$bank = new myCRED_Banking_Module();
-	$bank->load();
+add_action( 'mycred_pre_init', 'mycred_load_banking' );
+function mycred_load_banking()
+{
+	global $mycred_modules;
+
+	$mycred_types = mycred_get_types();
+	foreach ( $mycred_types as $type => $title ) {
+		$mycred_modules[ $type ]['banking'] = new myCRED_Banking_Module( $type );
+		$mycred_modules[ $type ]['banking']->load();
+	}
 }
 ?>

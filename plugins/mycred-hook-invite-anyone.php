@@ -3,7 +3,7 @@
 /**
  * Invite Anyone Plugin
  * @since 0.1
- * @version 1.2
+ * @version 1.4
  */
 if ( defined( 'myCRED_VERSION' ) ) {
 
@@ -25,7 +25,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	/**
 	 * Invite Anyone Hook
 	 * @since 0.1
-	 * @version 1.2
+	 * @version 1.4
 	 */
 	if ( ! class_exists( 'myCRED_Invite_Anyone' ) && class_exists( 'myCRED_Hook' ) ) {
 		class myCRED_Invite_Anyone extends myCRED_Hook {
@@ -40,12 +40,12 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						'send_invite'   => array(
 							'creds'        => 1,
 							'log'          => '%plural% for sending an invitation',
-							'limit'        => 0
+							'limit'        => '0/x'
 						),
 						'accept_invite' => array(
 							'creds'        => 1,
 							'log'          => '%plural% for accepted invitation',
-							'limit'        => 0
+							'limit'        => '0/x'
 						)
 					)
 				), $hook_prefs, $type );
@@ -74,20 +74,15 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Sending Invites
 			 * @since 0.1
-			 * @version 1.1
+			 * @version 1.2
 			 */
 			public function send_invite( $user_id, $email, $group ) {
-				// Limit Check
-				if ( $this->prefs['send_invite']['limit'] != 0 ) {
-					$key = 'mycred_invite_anyone';
-					if ( ! $this->is_main_type )
-						$key .= '_' . $this->mycred_type;
+				
+				// Check for exclusion
+				if ( $this->core->exclude_user( $user_id ) ) return;
 
-					$user_log = mycred_get_user_meta( $user_id, $key, '', true );
-					if ( empty( $user_log['sent'] ) ) $user_log['sent'] = 0;
-					// Return if limit is reached
-					if ( $user_log['sent'] >= $this->prefs['send_invite']['limit'] ) return;
-				}
+				// Limit
+				if ( $this->over_hook_limit( 'send_invite', 'sending_an_invite', $user_id ) ) return;
 
 				// Award Points
 				$this->core->add_creds(
@@ -100,18 +95,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					$this->mycred_type
 				);
 
-				// Update limit
-				if ( $this->prefs['send_invite']['limit'] != 0 ) {
-					$user_log['sent'] = $user_log['sent']+1;
-					mycred_update_user_meta( $user_id, $key, '', $user_log );
-				}
 			}
 
 			/**
 			 * Verified Signup
 			 * If signups needs to be verified, award points first when they are.
 			 * @since 1.4.6
-			 * @version 1.0
+			 * @version 1.1
 			 */
 			public function verified_signup( $user_id ) {
 
@@ -119,16 +109,17 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				$pending = get_transient( 'mycred-pending-bp-signups' );
 				if ( $pending === false || ! isset( $pending[ $user_id ] ) ) return;
 
-				// Award Points
-				$this->core->add_creds(
-					'accepting_an_invite',
-					$pending[ $user_id ],
-					$this->prefs['accept_invite']['creds'],
-					$this->prefs['accept_invite']['log'],
-					$user_id,
-					array( 'ref_type' => 'user' ),
-					$this->mycred_type
-				);
+				// Check for exclusion
+				if ( ! $this->core->exclude_user( $pending[ $user_id ] ) && ! $this->over_hook_limit( 'accept_invite', 'accepting_an_invite', $pending[ $user_id ] ) )
+					$this->core->add_creds(
+						'accepting_an_invite',
+						$pending[ $user_id ],
+						$this->prefs['accept_invite']['creds'],
+						$this->prefs['accept_invite']['log'],
+						$user_id,
+						array( 'ref_type' => 'user' ),
+						$this->mycred_type
+					);
 
 				// Remove from list
 				unset( $pending[ $user_id ] );
@@ -142,24 +133,16 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Accepting Invites
 			 * @since 0.1
-			 * @version 1.2
+			 * @version 1.3.1
 			 */
 			public function accept_invite( $invited_user_id, $inviters = array() ) {
 				if ( empty( $inviters ) ) return;
 
 				// Invite Anyone will pass on an array of user IDs of those who have invited this user which we need to loop though
 				foreach ( (array) $inviters as $inviter_id ) {
-					// Limit Check
-					if ( $this->prefs['accept_invite']['limit'] != 0 ) {
-						$key = 'mycred_invite_anyone';
-						if ( ! $this->is_main_type )
-							$key .= '_' . $this->mycred_type;
-
-						$user_log = mycred_get_user_meta( $inviter_id, $key, '', true );
-						if ( empty( $user_log['accepted'] ) ) $user_log['accepted'] = 0;
-						// Continue to next inviter if limit is reached
-						if ( $user_log['accepted'] >= $this->prefs['accept_invite']['limit'] ) continue;
-					}
+					
+					// Check for exclusion
+					if ( $this->core->exclude_user( $inviter_id ) ) continue;
 
 					// Award Points
 					$run = true;
@@ -181,7 +164,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						}
 					}
 
-					if ( $run )
+					if ( $run && ! $this->over_hook_limit( 'accept_invite', 'accepting_an_invite', $inviter_id ) )
 						$this->core->add_creds(
 							'accepting_an_invite',
 							$inviter_id,
@@ -192,18 +175,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 							$this->mycred_type
 						);
 
-					// Update Limit
-					if ( $this->prefs['accept_invite']['limit'] != 0 ) {
-						$user_log['accepted'] = $user_log['accepted']+1;
-						mycred_update_user_meta( $inviter_id, $key, '', $user_log );
-					}
 				}
 			}
 
 			/**
 			 * Preferences
 			 * @since 0.1
-			 * @version 1.0.2
+			 * @version 1.1
 			 */
 			public function preferences() {
 				$prefs = $this->prefs; ?>
@@ -224,8 +202,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <label for="<?php echo $this->field_id( array( 'send_invite', 'limit' ) ); ?>" class="subheader"><?php _e( 'Limit', 'mycred' ); ?></label>
 <ol>
 	<li>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'send_invite', 'limit' ) ); ?>" id="<?php echo $this->field_id( array( 'send_invite', 'limit' ) ); ?>" value="<?php echo $prefs['send_invite']['limit']; ?>" size="8" /></div>
-		<span class="description"><?php echo $this->core->template_tags_general( __( 'Maximum number of invites that grants %_plural%. Use zero for unlimited.', 'mycred' ) ); ?></span>
+		<label for="<?php echo $this->field_id( array( 'send_invite', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'send_invite', 'limit' ) ), $this->field_id( array( 'send_invite', 'limit' ) ), $prefs['send_invite']['limit'] ); ?>
 	</li>
 </ol>
 <!-- Creds for Accepting Invites -->
@@ -245,11 +223,36 @@ if ( defined( 'myCRED_VERSION' ) ) {
 <label for="<?php echo $this->field_id( array( 'accept_invite', 'limit' ) ); ?>" class="subheader"><?php _e( 'Limit', 'mycred' ); ?></label>
 <ol>
 	<li>
-		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'accept_invite', 'limit' ) ); ?>" id="<?php echo $this->field_id( array( 'accept_invite', 'limit' ) ); ?>" value="<?php echo $prefs['accept_invite']['limit']; ?>" size="8" /></div>
-		<span class="description"><?php echo $this->core->template_tags_general( __( 'Maximum number of accepted invitations that grants %_plural%. Use zero for unlimited.', 'mycred' ) ); ?></span>
+		<label for="<?php echo $this->field_id( array( 'accept_invite', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'accept_invite', 'limit' ) ), $this->field_id( array( 'accept_invite', 'limit' ) ), $prefs['accept_invite']['limit'] ); ?>
 	</li>
 </ol>
 <?php
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				if ( isset( $data['send_invite']['limit'] ) && isset( $data['send_invite']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['send_invite']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['send_invite']['limit'] = $limit . '/' . $data['send_invite']['limit_by'];
+					unset( $data['send_invite']['limit_by'] );
+				}
+
+				if ( isset( $data['accept_invite']['limit'] ) && isset( $data['accept_invite']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['accept_invite']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['accept_invite']['limit'] = $limit . '/' . $data['accept_invite']['limit_by'];
+					unset( $data['accept_invite']['limit_by'] );
+				}
+
+				return $data;
+
 			}
 		}
 	}

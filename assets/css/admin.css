@@ -1,7 +1,7 @@
 /**
  * myCRED Admin Styling
  * @since 0.1
- * @version 1.3
+ * @version 1.3.1
 */
 #myCRED-wrap table .column-username { width: 190px; }
 #myCRED-wrap table .column-creds { width: 80px; }
@@ -21,13 +21,15 @@
 /* Specifics */
 #myCRED-wrap p.submit { margin-top: 0; padding-top: 0; }
 #mycred-social { text-align: right; }
+body.post-type-buycred_payment a.add-new-h2, body.post-type-buycred_payment .view-switch { display: none; }
 
 /* General */
 #myCRED-wrap .h2 { font-family: "HelveticaNeue-Light","Helvetica Neue Light","Helvetica Neue",sans-serif; font-size: 22px; line-height: 29px; font-weight: normal; text-shadow: #fff 0 1px 0; }
 body.version-3-8 #myCRED-wrap .h2 { line-height: 15px; font-size: 18px; }
 body.version-3-8 #myCRED-wrap .h2.description { line-height: 22px; }
-body.version-3-8 #myCRED-wrap .h2 input[type="text"] { font-size: 14px; }
-#myCRED-wrap .h2 input[type="text"], #myCRED-wrap .h2 input[type="password"] { line-height: inherit; }
+body.version-3-8 #myCRED-wrap .h2 input[type="text"], body.version-3-8 #myCRED-wrap .h2 input[type="number"] { font-size: 14px; }
+#myCRED-wrap .h2 input[type="text"], #myCRED-wrap .h2 input[type="password"], #myCRED-wrap .h2 input[type="number"] { line-height: inherit; }
+#myCRED-wrap #mycred-update-log-decimals { height: 36px; line-height: 36px; margin-top: 1px; }
 #mycred-social-media { display: block; float: right; }
 #mycred-social-media a { margin-left: 12px; }
 
@@ -35,10 +37,11 @@ body.version-3-8 #myCRED-wrap .h2 input[type="text"] { font-size: 14px; }
 #myCRED-wrap #accordion { margin: 24px 0; padding: 0; float: none; clear: both; }
 body #myCRED-wrap #accordion { border-top: none; border-bottom: 1px solid #dedede; }
 body.version-3-8 #myCRED-wrap #accordion { border-top: 1px solid #dedede; border-bottom: 1px solid #fafafa; }
-#myCRED-wrap #accordion>h4 { font-size: 18px; line-height: 48px; font-weight: normal; color: #464646; font-family: "Open Sans", sans-serif; letter-spacing: 1px; }
+#myCRED-wrap #accordion>h4 { font-size: 18px; line-height: 48px; font-weight: normal; color: #464646; font-family: "Open Sans", sans-serif; letter-spacing: 1px; width: 100%; text-align: left; }
 #myCRED-wrap #accordion>h4:focus { outline: none; }
 #myCRED-wrap #accordion>h4:hover { cursor: pointer; }
-#myCRED-wrap #accordion .ui-accordion-header { padding: 0; margin: 0; }
+#myCRED-wrap #accordion .ui-accordion-header { padding: 0; margin: 0; background-color: transparent; background: none; border-left: none; border-right: none; }
+#myCRED-wrap .ui-accordion .ui-accordion-header .ui-accordion-header-icon { display: none; }
 body #myCRED-wrap #accordion .ui-accordion-header { border-top: 1px solid #dedede; border-bottom: none; }
 body.version-3-8 #myCRED-wrap #accordion .ui-accordion-header { border-top: 1px solid #fafafa; border-bottom: 1px solid #dedede; }
 #myCRED-wrap #accordion .ui-accordion-header input { vertical-align: middle; margin-right: 24px; }
@@ -85,7 +88,7 @@ body.version-3-8 #myCRED-wrap #accordion .ui-accordion-header { border-top: 1px 
 #myCRED-wrap #accordion>div { margin: 0; padding: 24px 48px 12px 48px; }
 #myCRED-wrap #accordion>div>p { margin-top: 0; }
 #myCRED-wrap #accordion .ui-accordion-content { display: none;float: none; clear: both; }
-body #myCRED-wrap #accordion .ui-accordion-content { border-top: 1px solid #dedede; border-bottom: none; }
+body #myCRED-wrap #accordion .ui-accordion-content { border-top: 1px solid #dedede; border-bottom: none; background-color: transparent; background: none; border-left: none; border-right: none; }
 body.version-3-8 #myCRED-wrap #accordion .ui-accordion-content { border-top: 1px solid #fafafa; border-bottom: 1px solid #dedede; }
 #myCRED-wrap #accordion .ui-accordion-content .wrapper:after { content: "."; height: 0; visibility: hidden; margin: 0; padding: 0; }
 
@@ -106,10 +109,9 @@ body.version-3-8 #myCRED-wrap #accordion .ui-accordion-content { border-top: 1px
 #myCRED-wrap ol.inline li:first-child { padding-left: 0; }
 #myCRED-wrap ol.inline li.block { float: none; padding: 0; clear: both; }
 #myCRED-wrap ol li.empty { display: block; height: 1px; float: none; clear: both; }
-#myCRED-wrap ol input.long { width: 50%; }
+#myCRED-wrap ol input.long { width: 85%; }
 #myCRED-wrap ol input.short { width: 80px; }
-#myCRED-wrap ol input[type="text"], 
-#myCRED-wrap ol input[type="checkbox"], #myCRED-wrap ol input[type="radio"] { margin-right: 12px; }
+#myCRED-wrap ol input[type="text"], #myCRED-wrap ol input[type="checkbox"], #myCRED-wrap ol input[type="radio"] { margin-right: 12px; }
 #myCRED-wrap ol li.option .h2, #myCRED-wrap ol li.option select, #myCRED-wrap ol li.option textarea { margin-left: 24px; }
 
 /* Setup */

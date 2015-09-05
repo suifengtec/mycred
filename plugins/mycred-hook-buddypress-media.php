@@ -3,7 +3,7 @@
 /**
  * rtMedia
  * @since 1.4
- * @version 1.0.1
+ * @version 1.0.2
  */
 if ( defined( 'myCRED_VERSION' ) ) {
 
@@ -40,10 +40,13 @@ if ( defined( 'myCRED_VERSION' ) ) {
 						'new_media'      => array(
 							'photo'          => 0,
 							'photo_log'      => '%plural% for new photo',
+							'photo_limit'    => '0/x',
 							'video'          => 0,
 							'video_log'      => '%plural% for new video',
+							'video_limit'    => '0/x',
 							'music'          => 0,
-							'music_log'      => '%plural% for new music'
+							'music_log'      => '%plural% for new music',
+							'music_limit'    => '0/x',
 						),
 						'delete_media'   => array(
 							'photo'          => 0,
@@ -70,7 +73,7 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * New Media
 			 * @since 1.4
-			 * @version 1.0.1
+			 * @version 1.1
 			 */
 			public function new_media( $media_ids, $file_object, $uploaded ) {
 				// Check for exclusion
@@ -85,6 +88,9 @@ if ( defined( 'myCRED_VERSION' ) ) {
 
 					// If this media type awards zero, bail
 					if ( $this->prefs['new_media'][ $media[0]->media_type ] == $this->core->zero() ) continue;
+
+					// Limit
+					if ( $this->over_hook_limit( $media[0]->media_type, $media[0]->media_type . '_upload', $uploaded['media_author'] ) ) continue;
 
 					// Make sure this is unique
 					if ( $this->core->has_entry( $media[0]->media_type . '_upload', $media[0]->media_author, $id ) ) continue;
@@ -106,35 +112,63 @@ if ( defined( 'myCRED_VERSION' ) ) {
 			/**
 			 * Delete Media
 			 * @since 1.4
-			 * @version 1.0
+			 * @version 1.0.1
 			 */
 			public function delete_media( $media_id ) {
 				// Get media details from id
 				$model = new RTMediaModel();
-				$media = $model->get_media( array( 'id' => $media_id ), 0, 1 );
-				if ( ! isset( $media->media_type ) ) return;
+				$media = $model->get_media( array( 'id' => $id ), 0, 1 );
+				if ( ! isset( $media[0]->media_type ) ) return;
 
 				// If this media type awards zero, bail
-				if ( $this->prefs['delete_media'][ $media->media_type ] == $this->core->zero() ) return;
+				if ( $this->prefs['delete_media'][ $media[0]->media_type ] == $this->core->zero() ) return;
 
 				// Check for exclusion
 				if ( $this->core->exclude_user( $media->media_author ) === true ) return;
 
 				// Only deduct if user gained points for this
-				if ( $this->core->has_entry( $media->media_type . '_upload', $media->media_author, $media_id ) ) {
+				if ( $this->core->has_entry( $media[0]->media_type . '_upload', $media[0]->media_author, $media_id ) ) {
 
 					// Execute
 					$this->core->add_creds(
-						$media->media_type . '_deletion',
-						$media->media_author,
-						$this->prefs['delete_media'][ $media->media_type ],
-						$this->prefs['delete_media'][ $media->media_type . '_log' ],
+						$media[0]->media_type . '_deletion',
+						$media[0]->media_author,
+						$this->prefs['delete_media'][ $media[0]->media_type ],
+						$this->prefs['delete_media'][ $media[0]->media_type . '_log' ],
 						$media_id,
-						array( 'ref_type' => 'media', 'attachment_id' => $media->media_id ),
+						array( 'ref_type' => 'media', 'attachment_id' => $media[0]->media_id ),
 						$this->mycred_type
 					);
 
 				}
+
+			}
+
+			/**
+			 * Adjust Limit Name
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			public function hook_limit_name( $name ) {
+
+				$name = str_replace( '[photo_limit]', '[photo_limit_by]', $name );
+				$name = str_replace( '[video_limit]', '[video_limit_by]', $name );
+				$name = str_replace( '[music_limit]', '[music_limit_by]', $name );
+				return $name;
+
+			}
+
+			/**
+			 * Adjust Limit ID
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			public function hook_limit_id( $id ) {
+
+				$id = str_replace( 'photo-limit', 'photo-limit-by', $id );
+				$id = str_replace( 'video-limit', 'video-limit-by', $id );
+				$id = str_replace( 'music-limit', 'music-limit-by', $id );
+				return $id;
 
 			}
 
@@ -158,13 +192,22 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				
 				$music = ' readonly="readonly"';
 				if ( array_key_exists( 'allowedTypes_music_enabled', $rtmedia->options ) && $rtmedia->options['allowedTypes_music_enabled'] == 1 )
-					$music = ''; ?>
+					$music = '';
+
+				add_filter( 'mycred_hook_limit_name_by', array( $this, 'hook_limit_name' ) );
+				add_filter( 'mycred_hook_limit_id_by',   array( $this, 'hook_limit_id' ) );
+
+?>
 
 <label class="subheader"><?php _e( 'New Media Upload', 'mycred' ); ?></label>
 <ol>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_media', 'photo' ) ); ?>"><?php _e( 'Photo Upload', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_media', 'photo' ) ); ?>" id="<?php echo $this->field_id( array( 'new_media', 'photo' ) ); ?>"<?php echo $photos; ?> value="<?php echo $this->core->number( $prefs['new_media']['photo'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_media', 'photo_limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_media', 'photo_limit' ) ), $this->field_id( array( 'new_media', 'photo_limit' ) ), $prefs['new_media']['photo_limit'] ); ?>
 	</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_media', 'photo_log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -177,6 +220,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_media', 'video' ) ); ?>" id="<?php echo $this->field_id( array( 'new_media', 'video' ) ); ?>"<?php echo $videos; ?> value="<?php echo $this->core->number( $prefs['new_media']['video'] ); ?>" size="8" /></div>
 	</li>
 	<li>
+		<label for="<?php echo $this->field_id( array( 'new_media', 'video_limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_media', 'video_limit' ) ), $this->field_id( array( 'new_media', 'video_limit' ) ), $prefs['new_media']['video_limit'] ); ?>
+	</li>
+	<li>
 		<label for="<?php echo $this->field_id( array( 'new_media', 'video_log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_media', 'video_log' ) ); ?>" id="<?php echo $this->field_id( array( 'new_media', 'video_log' ) ); ?>"<?php echo $videos; ?> value="<?php echo esc_attr( $prefs['new_media']['video_log'] ); ?>" class="long" /></div>
 		<span class="description"><?php echo $this->available_template_tags( array( 'general' ) ); ?></span>
@@ -185,6 +232,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_media', 'music' ) ); ?>"><?php _e( 'Music Upload', 'mycred' ); ?></label>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_media', 'music' ) ); ?>" id="<?php echo $this->field_id( array( 'new_media', 'music' ) ); ?>"<?php echo $music; ?> value="<?php echo $this->core->number( $prefs['new_media']['music'] ); ?>" size="8" /></div>
+	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_media', 'music_limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_media', 'music_limit' ) ), $this->field_id( array( 'new_media', 'music_limit' ) ), $prefs['new_media']['music_limit'] ); ?>
 	</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_media', 'music_log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -226,6 +277,38 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				if ( isset( $data['new_media']['photo_limit'] ) && isset( $data['new_media']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_media']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_media']['photo_limit'] = $limit . '/' . $data['new_media']['limit_by'];
+					unset( $data['new_media']['limit_by'] );
+				}
+
+				if ( isset( $data['new_media']['limit'] ) && isset( $data['new_media']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_media']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_media']['limit'] = $limit . '/' . $data['new_media']['limit_by'];
+					unset( $data['new_media']['limit_by'] );
+				}
+
+				if ( isset( $data['new_media']['limit'] ) && isset( $data['new_media']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_media']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_media']['limit'] = $limit . '/' . $data['new_media']['limit_by'];
+					unset( $data['new_media']['limit_by'] );
+				}
+
+				return $data;
+
 			}
 		}
 	}

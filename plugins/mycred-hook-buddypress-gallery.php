@@ -43,7 +43,8 @@ if ( defined( 'myCRED_VERSION' ) ) {
 					'defaults' => array(
 						'new_gallery' => array(
 							'creds'      => 1,
-							'log'        => '%plural% for new gallery'
+							'log'        => '%plural% for new gallery',
+							'limit'      => '0/x'
 						)
 					)
 				), $hook_prefs, $type );
@@ -71,18 +72,16 @@ if ( defined( 'myCRED_VERSION' ) ) {
 				if ( $this->core->exclude_user( $gallery->owner_id ) ) return;
 
 				// Make sure this is unique event
-				if ( $this->core->has_entry( 'new_buddypress_gallery', $gallery->id ) ) return;
-
-				// Execute
-				$this->core->add_creds(
-					'new_buddypress_gallery',
-					$gallery->owner_id,
-					$this->prefs['new_gallery']['creds'],
-					$this->prefs['new_gallery']['log'],
-					$gallery->id,
-					'bp_gallery',
-					$this->mycred_type
-				);
+				if ( ! $this->over_hook_limit( 'new_gallery', 'new_buddypress_gallery', $gallery->owner_id ) )
+					$this->core->add_creds(
+						'new_buddypress_gallery',
+						$gallery->owner_id,
+						$this->prefs['new_gallery']['creds'],
+						$this->prefs['new_gallery']['log'],
+						$gallery->id,
+						'bp_gallery',
+						$this->mycred_type
+					);
 			}
 
 			/**
@@ -99,6 +98,10 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	<li>
 		<div class="h2"><input type="text" name="<?php echo $this->field_name( array( 'new_gallery', 'creds' ) ); ?>" id="<?php echo $this->field_id( array( 'new_gallery', 'creds' ) ); ?>" value="<?php echo $this->core->number( $prefs['new_gallery']['creds'] ); ?>" size="8" /></div>
 	</li>
+	<li>
+		<label for="<?php echo $this->field_id( array( 'new_gallery', 'limit' ) ); ?>"><?php _e( 'Limit', 'mycred' ); ?></label>
+		<?php echo $this->hook_limit_setting( $this->field_name( array( 'new_gallery', 'limit' ) ), $this->field_id( array( 'new_gallery', 'limit' ) ), $prefs['new_gallery']['limit'] ); ?>
+	</li>
 	<li class="empty">&nbsp;</li>
 	<li>
 		<label for="<?php echo $this->field_id( array( 'new_gallery', 'log' ) ); ?>"><?php _e( 'Log template', 'mycred' ); ?></label>
@@ -107,6 +110,24 @@ if ( defined( 'myCRED_VERSION' ) ) {
 	</li>
 </ol>
 <?php
+			}
+			
+			/**
+			 * Sanitise Preferences
+			 * @since 1.6
+			 * @version 1.0
+			 */
+			function sanitise_preferences( $data ) {
+
+				if ( isset( $data['new_gallery']['limit'] ) && isset( $data['new_gallery']['limit_by'] ) ) {
+					$limit = sanitize_text_field( $data['new_gallery']['limit'] );
+					if ( $limit == '' ) $limit = 0;
+					$data['new_gallery']['limit'] = $limit . '/' . $data['new_gallery']['limit_by'];
+					unset( $data['new_gallery']['limit_by'] );
+				}
+
+				return $data;
+
 			}
 		}
 	}
