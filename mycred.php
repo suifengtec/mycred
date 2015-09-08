@@ -9,7 +9,7 @@
  * Author URI: http://www.merovingi.com
  * Author Email: support@mycred.me
  * Requires at least: WP 3.8
- * Tested up to: WP 4.1
+ * Tested up to: WP 4.3
  * Text Domain: mycred
  * Domain Path: /lang
  * License: GPLv2 or later
